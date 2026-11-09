@@ -1,0 +1,11 @@
+# Image du Codespace de R5.Real.10 : fichiers à ignorer dans Git
+
+# Éditeurs et système
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+.DS_Store
+
+# Essais locaux du conteneur (journaux de construction, mesures)
+*.log

@@ -1,0 +1,24 @@
+{
+  // Modèle de configuration distribuée pour le tp4 Neo4j (nouveau dépôt, issu
+  // de tp1-graphe). À copier tel quel dans le .devcontainer/devcontainer.json
+  // du dépôt, en changeant seulement "name". Il remplace le docker-compose.yml
+  // de tp1-graphe, à supprimer.
+  "name": "R5.Real.10 : TP Neo4j",
+  // Image publiée par IUTInfoAix-R510/devcontainer, tag épinglé, jamais
+  // `latest`. Extensions, réglages VS Code, utilisateur vscode et ports sont
+  // inscrits dans l'image : rien à répéter ici.
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.1",
+  // Répété ici et non seulement dans l'image : Codespaces choisit la machine
+  // avant de télécharger l'image. 2 cœurs et 8 Go, la machine par défaut.
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  // Dépendances npm des scripts du TP (npm run seed, npm run check), propres
+  // au dépôt : la seule installation à la création du codespace, quelques
+  // secondes. Sans package-lock.json, rien n'est installé : c'est le cas du
+  // dépôt de l'image, où ce modèle est testé.
+  "postCreateCommand": "[ ! -f .github/scripts/package-lock.json ] || npm ci --prefix .github/scripts",
+  // Démarre Neo4j à chaque démarrage du codespace et relie son dossier
+  // d'import au data/ du dépôt : LOAD CSV FROM "file:///emprunts.csv" lit
+  // data/emprunts.csv. MongoDB reste arrêté, ce qui laisse sa mémoire au
+  // serveur de langage et à Neo4j.
+  "postStartCommand": "r510-neo4j start"
+}

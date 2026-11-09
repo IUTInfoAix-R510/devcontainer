@@ -1,0 +1,109 @@
+{
+  // Configuration SOURCE du Codespace de R5.Real.10. Elle a deux usages :
+  //   - fabriquer l'image publiée sur ghcr.io, que la configuration distribuée
+  //     de chaque dépôt de TP se contente de télécharger (modèles dans
+  //     exemples/, et ../devcontainer.json pour ce dépôt) ;
+  //   - servir de secours si cette image est indisponible : dans ce dépôt, elle
+  //     se choisit avec « New with options… » et reconstruit tout sur place.
+  // Extensions, réglages et remoteUser sont définis ici et nulle part
+  // ailleurs : ils sont inscrits dans l'image à la construction.
+  //
+  // Pas de postStartCommand ici : il serait inscrit dans l'image et s'ajouterait
+  // à celui de chaque dépôt, au lieu d'être remplacé par lui. C'est le dépôt qui
+  // choisit les bases à démarrer (r510-mongo start, r510-neo4j start).
+  "name": "R5.Real.10 (construction sur place, secours)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "features": {
+    // Serveur SSH pour `gh codespace ssh` (et `gh codespace cp`) : l'image de
+    // base n'en a pas, contrairement à l'image par défaut de Codespaces. Il
+    // écoute sur le port 2222 du conteneur, qui n'est pas redirigé, et
+    // n'accepte que les clés installées par Codespaces : vscode n'a pas de
+    // mot de passe.
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+  // L'uid 1000 est celui auquel Codespaces attribue le dossier de travail.
+  "remoteUser": "vscode",
+  // MongoDB, Neo4j et le serveur de langage Java tiennent dans 8 Go : machine à
+  // 2 cœurs, celle par défaut. Codespaces choisit la machine avant de
+  // télécharger l'image et ne lit donc pas cette ligne depuis l'image : chaque
+  // configuration distribuée la répète. Elle sert ici au secours.
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  // Aucune commande de cycle de vie qui installe quoi que ce soit : tout est
+  // dans l'image. Les bases écoutent sur localhost et restent privées ; leurs
+  // ports sont redirigés sans notification ni onglet ouvert. Neo4j Browser ne
+  // fonctionne pas à travers le tunnel de Codespaces : l'outil est l'extension
+  // VS Code Neo4j, qui tourne dans le conteneur.
+  "portsAttributes": {
+    "27017": { "label": "MongoDB", "onAutoForward": "silent" },
+    "7474": { "label": "Neo4j HTTP", "onAutoForward": "silent" },
+    "7687": { "label": "Neo4j Bolt", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Playgrounds MongoDB (.mongodb.js), Ctrl+Alt+R.
+        "mongodb.mongodb-vscode",
+        // Playground Neo4j (.cypher) : connexion, exécution, coloration.
+        "neo4j-extensions.neo4j-for-vscode",
+        // Projet SteamCity (Java, Maven wrapper).
+        "vscjava.vscode-java-pack",
+        // Copilot Chat sert de tuteur ; ses réponses sont cadrées par
+        // .github/copilot-instructions.md dans chaque dépôt.
+        "GitHub.copilot-chat"
+      ],
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "zsh"
+          }
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        // Connexion à la base du conteneur toute prête dans la vue MongoDB.
+        "mdb.presetConnections": [
+          {
+            "name": "MongoDB du Codespace",
+            "connectionString": "mongodb://localhost:27017"
+          }
+        ],
+        // Ni page d'accueil de l'extension à chaque création, ni télémétrie.
+        "mdb.showOverviewPageAfterInstall": false,
+        "mdb.sendTelemetry": false,
+        // Connexion à Neo4j toute prête dans la vue Neo4j. Le mot de passe est
+        // celui de la base locale du TP (tp1-graphe) : rien de secret. Neo4j
+        // demande de confirmer la confiance au premier usage.
+        "neo4j.connections": [
+          {
+            "name": "Neo4j du Codespace",
+            "scheme": "neo4j",
+            "host": "localhost",
+            "port": 7687,
+            "user": "neo4j",
+            "password": "mediatheque"
+          }
+        ],
+        // JDK du projet : celui de l'image.
+        "java.configuration.runtimes": [
+          {
+            "name": "JavaSE-25",
+            "path": "/opt/java/openjdk",
+            "default": true
+          }
+        ],
+        // Pas de complétion automatique par Copilot : l'étudiant écrit son
+        // code, Copilot ne répond que dans le chat (comme IntroPython).
+        "github.copilot.enable": {
+          "*": false
+        },
+        // Les features git (image de base) et sshd ajoutent chacune une
+        // consigne à Copilot ; celle de sshd lui fait conseiller de « set a
+        // password for your user ». Ce réglage, fusionné après les leurs, les
+        // retire. Les consignes de .github/copilot-instructions.md ne passent
+        // pas par lui.
+        "github.copilot.chat.codeGeneration.instructions": []
+      }
+    }
+  }
+}

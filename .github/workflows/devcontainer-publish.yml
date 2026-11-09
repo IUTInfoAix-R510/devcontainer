@@ -1,0 +1,141 @@
+# =====================================================================
+# devcontainer-publish.yml : publie l'image du Codespace de R5.Real.10
+# sur ghcr.io. Même mécanique que IUTInfoAix/IntroPython.
+#
+# Pourquoi : Classroom 50 crée le dépôt de chaque étudiant, à partir des
+# dépôts modèles, dans l'organisation de classe IUTInfoAix-R510-2026. Les
+# prebuilds des dépôts modèles ne s'appliquent pas à ces copies, et des
+# prebuilds sur les copies seraient facturés à l'organisation de classe,
+# dont le budget Codespaces est à 0 $. En publiant l'image une fois ici,
+# la création de leur codespace se réduit à un téléchargement (l'"image"
+# de leur .devcontainer/devcontainer.json, voir exemples/) au lieu d'une
+# construction complète par étudiant : MongoDB, Neo4j, Java, Node, gh.
+#
+# L'image est construite à partir de .devcontainer/source/ et n'est
+# publiée que si le smoke-test passe dans le conteneur.
+#
+# Déclencheurs, tous deux manuels :
+#   - push d'un tag git `devcontainer-AAAA.MM.N` : fonctionne depuis
+#     n'importe quelle branche, donc avant de fusionner ;
+#   - workflow_dispatch avec la version en paramètre : uniquement une fois
+#     ce fichier présent sur la branche par défaut.
+#
+# Jamais de tag `latest`, et une version publiée n'est jamais écrasée :
+# les dépôts étudiants déjà créés pointent dessus.
+#
+# amd64 seulement : MongoDB ne publie pas de paquet Debian arm64, et
+# c'est l'architecture de Codespaces.
+#
+# Neutralisé dans les forks, comme devcontainer.yml.
+# =====================================================================
+name: devcontainer-publish
+
+on:
+  push:
+    tags:
+      - "devcontainer-*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version de l'image, au format AAAA.MM.N (exemple : 2026.11.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # En minuscules : ghcr.io refuse les majuscules dans un nom d'image.
+  IMAGE: ghcr.io/iutinfoaix-r510/r510-devcontainer
+
+jobs:
+  publish:
+    name: build, smoke-test & publish
+    # Ne pas tourner dans les forks.
+    if: github.repository == 'IUTInfoAix-R510/devcontainer'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Détermine la version
+        id: version
+        env:
+          VERSION_SAISIE: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            version="$VERSION_SAISIE"
+          else
+            version="${GITHUB_REF_NAME#devcontainer-}"
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]+$'; then
+            echo "::error::Version « $version » invalide : le format attendu est AAAA.MM.N"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse d'écraser une version déjà publiée
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # On ne publie que si le registre répond explicitement que ce tag
+          # n'existe pas. Toute autre réponse (panne réseau, accès refusé)
+          # arrête le job : dans le doute, on n'écrase rien.
+          if sortie=$(docker manifest inspect "$IMAGE:$VERSION" 2>&1); then
+            echo "::error::$IMAGE:$VERSION existe déjà. Choisissez une nouvelle version."
+            exit 1
+          elif printf '%s' "$sortie" | grep -qiE "manifest unknown|name unknown"; then
+            echo "$IMAGE:$VERSION n'existe pas encore : la publication peut continuer."
+          else
+            echo "::error::Impossible de savoir si $IMAGE:$VERSION existe déjà : $sortie"
+            exit 1
+          fi
+
+      - name: Build, smoke-test & publish
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        with:
+          configFile: .devcontainer/source/devcontainer.json
+          imageName: ${{ env.IMAGE }}
+          imageTag: ${{ steps.version.outputs.version }}
+          # Image publiée : construite de zéro, sans réutiliser de couche.
+          noCache: true
+          # Sans argument : la configuration source ne démarre aucune base,
+          # le smoke-test les démarre et les arrête lui-même.
+          runCmd: .devcontainer/smoke-test.sh
+          # L'image n'est poussée que si le smoke-test a réussi.
+          push: always
+
+      - name: Résumé et suite à donner
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "## Image construite et testée : \`$IMAGE:$VERSION\`"
+            echo
+            echo "Le push vers ghcr.io a lieu à la toute fin du job, dans l'étape « Post Build, smoke-test & publish » : vérifiez qu'elle est verte."
+            echo
+            # Les quatre configurations distribuées : celle de ce dépôt et
+            # les trois modèles.
+            retard=""
+            for f in .devcontainer/devcontainer.json exemples/*/devcontainer.json; do
+              grep -q "$IMAGE:$VERSION\"" "$f" || retard="$retard \`$f\`"
+            done
+            if [ -z "$retard" ]; then
+              echo "La configuration distribuée de ce dépôt et les trois modèles de \`exemples/\` pointent déjà sur cette version."
+            else
+              echo "**À faire** : mettre cette version dans$retard."
+            fi
+            echo
+            echo "Puis, dans chaque dépôt modèle (tp1, tp2, tp3, tp4, projet), mettre cette version dans \`.devcontainer/devcontainer.json\`, et dans \`.devcontainer/bonus-neo4j/devcontainer.json\` pour le projet. Les dépôts étudiants déjà créés gardent l'ancienne."
+            echo
+            echo "À la première publication, rendre le paquet **public** (Packages → Package settings → Change visibility), puis relancer le workflow \`devcontainer\` : il télécharge l'image sans authentification, comme un étudiant."
+          } >> "$GITHUB_STEP_SUMMARY"

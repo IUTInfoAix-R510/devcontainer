@@ -1,0 +1,29 @@
+{
+  "name": "R5.Real.10 (dépôt de l'image)",
+  // Configuration DISTRIBUÉE de ce dépôt : celle que Codespaces prend par
+  // défaut. Les dépôts de TP en ont chacun une, sur le modèle des fichiers du
+  // dossier exemples/.
+  //
+  // Elle ne construit rien : elle télécharge l'image fabriquée à partir de
+  // source/ et publiée par ce dépôt. Créer un codespace se réduit à ce
+  // téléchargement, identique pour toute la promotion.
+  //
+  // Les extensions, les réglages, l'utilisateur vscode et les ports ne sont pas
+  // répétés ici : ils sont inscrits dans l'image (voir source/devcontainer.json).
+  //
+  // Tag épinglé, jamais `latest` : un tag publié ne change plus de contenu.
+  // Pour en changer, voir « Publier une nouvelle image » dans CONTRIBUTING.md.
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.1",
+  // Répété ici et non seulement dans l'image : Codespaces choisit la machine
+  // avant de télécharger l'image. 2 cœurs et 8 Go, la machine par défaut.
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  // Seule commande de cycle de vie : elle n'installe rien, elle démarre les
+  // deux bases (comme le projet avec bonus Neo4j). postStart et non
+  // postCreate : un codespace arrêté puis repris redémarre ses bases. Sous
+  // forme d'objet, les deux démarrent en parallèle et l'échec de l'une
+  // n'empêche pas l'autre de démarrer.
+  "postStartCommand": {
+    "mongo": "r510-mongo start",
+    "neo4j": "r510-neo4j start"
+  }
+}

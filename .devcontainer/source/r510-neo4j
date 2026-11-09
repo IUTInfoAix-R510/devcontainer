@@ -1,0 +1,165 @@
+#!/bin/sh
+# r510-neo4j : pilote le serveur Neo4j du Codespace de R5.Real.10.
+#
+#   r510-neo4j start          démarre Neo4j et attend qu'il réponde aux requêtes
+#   r510-neo4j stop           l'arrête proprement (une quinzaine de secondes)
+#   r510-neo4j status         dit s'il tourne (code de retour 0 s'il tourne, 3 sinon)
+#   r510-neo4j reset [--oui]  efface la base (mot de passe compris), puis redémarre Neo4j
+#   r510-neo4j log            affiche la fin du journal
+#
+# Le dépôt Neo4j le démarre dans son postStartCommand
+# (`"postStartCommand": "r510-neo4j start"`) : la commande est rejouée à chaque
+# démarrage du codespace, création comme reprise après un arrêt. start et stop
+# sont donc sans effet quand le serveur est déjà dans l'état demandé.
+#
+# Dossier d'import : start le relie au dossier data/ du dépôt.
+# LOAD CSV FROM "file:///emprunts.csv" lit alors data/emprunts.csv, comme avec
+# le docker-compose d'origine de tp1-graphe. Le dépôt est cherché dans cet
+# ordre : le dossier courant (celui du dépôt quand la commande vient de
+# postStartCommand), la racine du dépôt git qui le contient, puis le dossier
+# ouvert par Codespaces ($CODESPACE_VSCODE_FOLDER). Lancée depuis ~ ou depuis
+# un sous-dossier, la commande retrouve donc le même data/.
+#
+# Neo4j tourne avec l'utilisateur vscode, sans root. Base, journaux et dossier
+# d'import sont dans le home de vscode (réglages ajoutés à
+# /opt/neo4j/conf/neo4j.conf par le Dockerfile) : ils survivent à l'arrêt du
+# codespace, pas à un « Rebuild Container ».
+#
+# L'arrêt du codespace n'arrête pas Neo4j proprement : il est tué avec le
+# conteneur. Il repart sur ses journaux de transactions, et son fichier de
+# numéro de processus reste en place : tourne() vérifie donc que ce numéro est
+# bien celui d'un serveur Neo4j, et non d'un processus qui l'a repris.
+set -eu
+
+DIR=/home/vscode/.local/share/neo4j
+LOG=$DIR/logs/neo4j.log
+IMPORT=$DIR/import
+PIDFILE=$DIR/run/neo4j.pid
+# Mot de passe de la base locale du TP (celui de tp1-graphe) : rien de secret.
+MOT_DE_PASSE=mediatheque
+
+if [ "$(id -un)" != vscode ]; then
+    echo "r510-neo4j se lance avec l'utilisateur vscode (sudo -u vscode r510-neo4j ${1:-})" >&2
+    exit 1
+fi
+
+# Le numéro inscrit dans neo4j.pid désigne-t-il un serveur Neo4j vivant ?
+# `neo4j status` ne vérifie que l'existence d'un processus portant ce numéro,
+# et coûte le lancement d'une JVM.
+tourne() {
+    p=$(cat "$PIDFILE" 2> /dev/null) && [ -n "$p" ] \
+        && tr '\0' '\n' 2> /dev/null < "/proc/$p/cmdline" | grep -qx 'org\.neo4j\.server\.Neo4jCommunity'
+}
+
+# Prêt quand la base neo4j répond à une requête par l'API HTTP : plus léger
+# que cypher-shell, qui démarre une JVM à chaque essai. 401 compte comme prêt :
+# le serveur répond, seul le mot de passe a été changé.
+repond() {
+    code=$(curl -s -o /dev/null -w '%{http_code}' -u "neo4j:$MOT_DE_PASSE" \
+        -H 'Content-Type: application/json' -d '{"statement": "RETURN 1"}' \
+        http://localhost:7474/db/neo4j/query/v2 2> /dev/null) || true
+    [ "$code" = 202 ] || [ "$code" = 401 ]
+}
+
+relie_import() {
+    cible=
+    for racine in "$PWD" "$(git rev-parse --show-toplevel 2> /dev/null || true)" "${CODESPACE_VSCODE_FOLDER:-}"; do
+        if [ -n "$racine" ] && [ -d "$racine/data" ]; then
+            cible=$racine/data
+            break
+        fi
+    done
+    if [ -z "$cible" ]; then
+        # Aucun data/ trouvé : le lien actuel est gardé s'il mène à un dossier,
+        # pour qu'un start lancé de n'importe où ne décroche pas l'import.
+        actuel=$(readlink "$IMPORT" 2> /dev/null || true)
+        if [ -n "$actuel" ] && [ -d "$actuel" ]; then
+            cible=$actuel
+        else
+            cible=$DIR/import-vide
+            mkdir -p "$cible"
+        fi
+    fi
+    ln -sfn "$cible" "$IMPORT"
+    echo "Dossier d'import de Neo4j (LOAD CSV FROM \"file:///...\") : $cible"
+}
+
+demarre() {
+    # Relié même si Neo4j tourne déjà : il lit le lien à chaque LOAD CSV.
+    relie_import
+    if tourne; then
+        echo "Neo4j tourne déjà sur bolt://localhost:7687"
+        return 0
+    fi
+    # Laissé par un arrêt brutal : neo4j start refuserait de démarrer si son
+    # numéro a été repris par un autre processus.
+    rm -f "$PIDFILE"
+    if ! neo4j start > "$DIR/logs/start.log" 2>&1; then
+        echo "Neo4j n'a pas démarré :" >&2
+        cat "$DIR/logs/start.log" >&2
+        exit 1
+    fi
+    # 7 à 12 s sur un poste de 16 cœurs, 13 s dans un conteneur limité à
+    # 2 cœurs (essais locaux) : 2 minutes au plus.
+    i=0
+    until repond; do
+        i=$((i + 1))
+        if [ "$i" -ge 120 ] || ! tourne; then
+            echo "Neo4j ne répond pas. Fin du journal ($LOG) :" >&2
+            tail -n 20 "$LOG" >&2 || true
+            exit 1
+        fi
+        sleep 1
+    done
+    echo "Neo4j démarré sur bolt://localhost:7687 (utilisateur neo4j, mot de passe $MOT_DE_PASSE)"
+}
+
+arrete() {
+    if ! tourne; then
+        # Sans ce ménage, neo4j stop enverrait SIGTERM au processus qui a
+        # repris le numéro.
+        rm -f "$PIDFILE"
+        echo "Neo4j est déjà arrêté."
+        return 0
+    fi
+    # Une quinzaine de secondes : Neo4j ferme ses connecteurs et sa base.
+    neo4j stop > /dev/null 2>&1
+    echo "Neo4j arrêté."
+}
+
+case "${1:-}" in
+    start) demarre ;;
+    stop) arrete ;;
+    status)
+        if tourne; then
+            echo "Neo4j tourne sur bolt://localhost:7687 (import : $(readlink "$IMPORT" || echo aucun))."
+        else
+            echo "Neo4j est arrêté. Pour le démarrer : r510-neo4j start"
+            exit 3
+        fi
+        ;;
+    reset)
+        if [ "${2:-}" != --oui ]; then
+            if [ -t 0 ]; then
+                printf 'Effacer la base Neo4j du codespace ? [o/N] '
+                read -r reponse
+                case "$reponse" in o | O | oui | OUI) ;; *) echo "Rien n'a été effacé."; exit 0 ;; esac
+            else
+                echo "reset efface la base : confirmez avec r510-neo4j reset --oui" >&2
+                exit 1
+            fi
+        fi
+        arrete
+        rm -rf "${DIR:?}/data"
+        mkdir -p "$DIR/data"
+        # Le mot de passe initial est écrit dans la base : à remettre.
+        neo4j-admin dbms set-initial-password "$MOT_DE_PASSE" > /dev/null 2>&1
+        echo "Base Neo4j effacée (mot de passe : $MOT_DE_PASSE)."
+        demarre
+        ;;
+    log) tail -n 30 "$LOG" ;;
+    *)
+        echo "Usage : r510-neo4j start | stop | status | reset [--oui] | log" >&2
+        exit 2
+        ;;
+esac

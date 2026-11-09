@@ -1,0 +1,18 @@
+{
+  // Modèle de configuration distribuée pour un dépôt MongoDB : tp1, tp2, tp3 et
+  // projet SteamCity (configuration par défaut, sans le bonus Neo4j). À copier
+  // dans le .devcontainer/devcontainer.json du dépôt, en changeant "name" et en
+  // ajoutant, si le dépôt en a, l'installation de ses dépendances npm (README).
+  "name": "R5.Real.10 : TP MongoDB",
+  // Image publiée par IUTInfoAix-R510/devcontainer, tag épinglé, jamais
+  // `latest`. Extensions, réglages VS Code, utilisateur vscode et ports sont
+  // inscrits dans l'image : rien à répéter ici.
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.1",
+  // Répété ici et non seulement dans l'image : Codespaces choisit la machine
+  // avant de télécharger l'image. 2 cœurs et 8 Go, la machine par défaut.
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  // Démarre MongoDB à chaque démarrage du codespace (création, puis chaque
+  // reprise après un arrêt). Neo4j reste arrêté : `r510-neo4j start` dans le
+  // terminal le démarre à la main si besoin.
+  "postStartCommand": "r510-mongo start"
+}

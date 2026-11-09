@@ -1,0 +1,119 @@
+# =====================================================================
+# devcontainer.yml : vérifie qu'un étudiant peut travailler dans le
+# Codespace de R5.Real.10, pour chaque configuration du dépôt.
+#
+#   - source (.devcontainer/source/) : construit réellement l'image avec
+#     sa feature. Échoue si l'image de base, la feature ou un
+#     téléchargement a bougé (somme SHA-256 qui ne correspond plus,
+#     fichier disparu) : c'est la configuration de secours, et celle de
+#     la prochaine publication.
+#   - distribuées (.devcontainer/devcontainer.json et les trois modèles
+#     de exemples/) : téléchargent l'image publiée sur ghcr.io, SANS
+#     authentification, exactement comme le codespace d'un étudiant.
+#     Échouent si le paquet a été supprimé ou est repassé en privé, ou si
+#     le postStartCommand d'un modèle ne démarre pas les bases attendues.
+#
+# Dans tous les cas, le smoke-test .devcontainer/smoke-test.sh tourne
+# dans le conteneur : versions, gh student, chaque base démarrée,
+# interrogée, redémarrée, tuée puis reprise, et réinitialisée, compilation
+# Java, mémoire au repos, écoute sur localhost seulement. Ses arguments
+# sont les bases que postStartCommand doit avoir démarrées.
+#
+# Un job à part vérifie que les quatre configurations distribuées
+# désignent la même version de l'image.
+#
+# Pourquoi : une casse n'est sinon visible qu'à la création d'un
+# Codespace, c'est-à-dire en début de séance, devant toute la promotion.
+#
+# Déclencheurs :
+#   - schedule hebdomadaire : attrape la DÉRIVE EXTERNE (fichier qui
+#     disparaît d'un dépôt de paquets, feature qui bouge, paquet ghcr
+#     repassé en privé) SANS changement de config : c'est le mode de
+#     panne réel. Ne tourne que sur la branche par défaut.
+#   - push/PR touchant .devcontainer/**, exemples/** ou ce fichier :
+#     attrape les régressions de config.
+#   - manuel (workflow_dispatch) : à lancer la veille d'une séance.
+#
+# Neutralisé dans les forks : la garde ne laisse tourner le job que dans
+# le dépôt enseignant.
+# =====================================================================
+name: devcontainer
+
+on:
+  push:
+    # Branches uniquement : sans ce filtre, le push d'un tag de publication
+    # (devcontainer-*) lance aussi ce workflow, avant que l'image n'existe.
+    branches:
+      - "**"
+    paths:
+      - ".devcontainer/**"
+      - "exemples/**"
+      - ".github/workflows/devcontainer.yml"
+  pull_request:
+    paths:
+      - ".devcontainer/**"
+      - "exemples/**"
+      - ".github/workflows/devcontainer.yml"
+  schedule:
+    - cron: "0 6 * * 1" # lundi 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  meme-version:
+    name: même version de l'image partout
+    # Ne pas tourner dans les forks.
+    if: github.repository == 'IUTInfoAix-R510/devcontainer'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Les configurations distribuées désignent le même tag
+        run: |
+          # Un modèle oublié à la publication d'une version distribuerait
+          # l'ancienne image aux dépôts qui le copient.
+          tags=$(grep -ho 'ghcr.io/iutinfoaix-r510/r510-devcontainer:[^"]*' \
+            .devcontainer/devcontainer.json exemples/*/devcontainer.json | sort | uniq -c)
+          echo "$tags"
+          if [ "$(printf '%s\n' "$tags" | wc -l)" -ne 1 ] || ! printf '%s' "$tags" | grep -q '^ *4 '; then
+            echo "::error::Les quatre configurations distribuées ne désignent pas toutes la même image."
+            exit 1
+          fi
+
+  smoke-test:
+    name: smoke-test (${{ matrix.nom }})
+    # Ne pas tourner dans les forks.
+    if: github.repository == 'IUTInfoAix-R510/devcontainer'
+    runs-on: ubuntu-latest
+    strategy:
+      # Les configurations tombent en panne pour des raisons différentes :
+      # l'échec de l'une ne doit pas masquer l'état des autres.
+      fail-fast: false
+      matrix:
+        include:
+          - nom: construction depuis source
+            config: .devcontainer/source/devcontainer.json
+            bases: ""
+          - nom: image distribuée (ce dépôt)
+            config: .devcontainer/devcontainer.json
+            bases: mongo neo4j
+          - nom: modèle MongoDB (tp1 à tp3, projet)
+            config: exemples/mongodb/devcontainer.json
+            bases: mongo
+          - nom: modèle Neo4j (tp4)
+            config: exemples/neo4j/devcontainer.json
+            bases: neo4j
+          - nom: modèle projet avec bonus Neo4j
+            config: exemples/projet-bonus/devcontainer.json
+            bases: mongo neo4j
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # Pas de `docker login` avant cette étape : l'image distribuée doit
+      # rester téléchargeable sans authentification, comme chez un étudiant.
+      - name: Build & smoke-test devcontainer
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        with:
+          configFile: ${{ matrix.config }}
+          runCmd: .devcontainer/smoke-test.sh ${{ matrix.bases }}
+          push: never

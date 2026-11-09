@@ -1,0 +1,113 @@
+#!/bin/sh
+# r510-mongo : pilote le serveur MongoDB du Codespace de R5.Real.10.
+#
+#   r510-mongo start          démarre mongod et attend qu'il accepte les connexions
+#   r510-mongo stop           l'arrête proprement
+#   r510-mongo status         dit s'il tourne (code de retour 0 s'il tourne, 3 sinon)
+#   r510-mongo reset [--oui]  efface TOUTES les bases, puis redémarre MongoDB
+#   r510-mongo log            affiche la fin du journal
+#
+# Chaque dépôt choisit les bases qu'il démarre dans son postStartCommand
+# (`"postStartCommand": "r510-mongo start"`) : la commande est rejouée à chaque
+# démarrage du codespace, création comme reprise après un arrêt. start et stop
+# sont donc sans effet quand le serveur est déjà dans l'état demandé.
+#
+# mongod tourne avec l'utilisateur vscode, sans root ni systemd. Sa base et son
+# journal sont dans le home de vscode : ils survivent à l'arrêt du codespace,
+# pas à un « Rebuild Container ». L'arrêt du codespace n'arrête pas mongod
+# proprement : il est tué avec le conteneur, et repart sur son journal
+# WiredTiger.
+set -eu
+
+CONF=/usr/local/etc/mongod.conf
+DIR=/home/vscode/.local/share/mongodb
+LOG=$DIR/mongod.log
+URI=mongodb://localhost:27017
+
+if [ "$(id -un)" != vscode ]; then
+    echo "r510-mongo se lance avec l'utilisateur vscode (sudo -u vscode r510-mongo ${1:-})" >&2
+    exit 1
+fi
+
+tourne() { pgrep -u vscode -x mongod > /dev/null; }
+
+repond() { mongosh --quiet --norc "$URI" --eval 'db.runCommand({ ping: 1 }).ok' > /dev/null 2>&1; }
+
+demarre() {
+    if tourne; then
+        echo "MongoDB tourne déjà sur $URI"
+        return 0
+    fi
+    # Deux avertissements que mongosh afficherait à chaque connexion, et qui se
+    # corrigent sans root : limite de fichiers ouverts (1024 par défaut, 64000
+    # recommandés) et rseq de la glibc, que l'allocateur de MongoDB ne gère pas
+    # encore. Les autres (huge pages, swappiness) dépendent de la machine hôte.
+    # -S : seule la limite souple monte, la limite dure reste celle du
+    # conteneur. -S est hors POSIX, mais dash (/bin/sh de Debian) le connaît.
+    # shellcheck disable=SC3045
+    ulimit -Sn 64000 2> /dev/null || true
+    # fork: true (mongod.conf) : mongod ne rend la main qu'une fois prêt.
+    if ! GLIBC_TUNABLES=glibc.pthread.rseq=0 mongod --config "$CONF" > /dev/null; then
+        echo "MongoDB n'a pas démarré. Fin du journal ($LOG) :" >&2
+        tail -n 5 "$LOG" >&2 || true
+        exit 1
+    fi
+    # Filet de sécurité : 30 s au plus pour répondre à un ping.
+    i=0
+    until repond; do
+        i=$((i + 1))
+        if [ "$i" -ge 30 ]; then
+            echo "MongoDB a démarré mais ne répond pas. Fin du journal ($LOG) :" >&2
+            tail -n 5 "$LOG" >&2 || true
+            exit 1
+        fi
+        sleep 1
+    done
+    echo "MongoDB démarré sur $URI"
+}
+
+arrete() {
+    if ! tourne; then
+        echo "MongoDB est déjà arrêté."
+        return 0
+    fi
+    # Arrêt propre : mongod lit son numéro de processus dans le dossier de la
+    # base, termine les écritures en cours et attend la fin du processus.
+    mongod --config "$CONF" --shutdown > /dev/null
+    echo "MongoDB arrêté."
+}
+
+case "${1:-}" in
+    start) demarre ;;
+    stop) arrete ;;
+    status)
+        if tourne; then
+            echo "MongoDB tourne sur $URI (processus $(pgrep -u vscode -x mongod))."
+        else
+            echo "MongoDB est arrêté. Pour le démarrer : r510-mongo start"
+            exit 3
+        fi
+        ;;
+    reset)
+        if [ "${2:-}" != --oui ]; then
+            if [ -t 0 ]; then
+                printf 'Effacer TOUTES les bases MongoDB du codespace ? [o/N] '
+                read -r reponse
+                case "$reponse" in o | O | oui | OUI) ;; *) echo "Rien n'a été effacé."; exit 0 ;; esac
+            else
+                echo "reset efface toutes les bases : confirmez avec r510-mongo reset --oui" >&2
+                exit 1
+            fi
+        fi
+        arrete
+        rm -rf "${DIR:?}/db"
+        mkdir -p "$DIR/db"
+        echo "Bases MongoDB effacées."
+        demarre
+        ;;
+    log) tail -n 30 "$LOG" ;;
+    *)
+        echo "Usage : r510-mongo start | stop | status | reset [--oui] | log" >&2
+        exit 2
+        ;;
+esac

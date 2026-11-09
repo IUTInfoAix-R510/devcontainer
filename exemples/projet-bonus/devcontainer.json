@@ -1,0 +1,24 @@
+{
+  // Modèle de configuration distribuée pour le projet SteamCity avec le bonus
+  // Neo4j : Java, MongoDB et Neo4j. Dans le dépôt modèle du projet, il se place
+  // en .devcontainer/bonus-neo4j/devcontainer.json, à côté de la configuration
+  // par défaut (exemples/mongodb). Une équipe qui prend le bonus le choisit
+  // avec « New with options… » à la création de son codespace.
+  "name": "R5.Real.10 : projet SteamCity avec le bonus Neo4j",
+  // Image publiée par IUTInfoAix-R510/devcontainer, tag épinglé, jamais
+  // `latest`. Extensions (dont le pack Java), réglages VS Code, utilisateur
+  // vscode et ports sont inscrits dans l'image : rien à répéter ici.
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.1",
+  // Répété ici et non seulement dans l'image : Codespaces choisit la machine
+  // avant de télécharger l'image. 2 cœurs et 8 Go, la machine par défaut.
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  // Démarre les deux bases à chaque démarrage du codespace, en parallèle :
+  // l'échec de l'une n'empêche pas l'autre de démarrer. Le dossier d'import
+  // de Neo4j est relié au data/ à la racine du dépôt s'il existe.
+  // Maven n'est pas dans l'image : ./mvnw le télécharge dans ~/.m2 à la
+  // première compilation, avec les dépendances du projet.
+  "postStartCommand": {
+    "mongo": "r510-mongo start",
+    "neo4j": "r510-neo4j start"
+  }
+}
