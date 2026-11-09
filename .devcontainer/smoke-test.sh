@@ -220,6 +220,18 @@ r510-neo4j status > /dev/null && echec "status dit que Neo4j tourne après kill 
 (cd "$depot" && r510-neo4j start > /dev/null)
 [ "$(cypher 'MATCH (v:Ville) RETURN count(v) AS n;')" = "2" ] || echec "données perdues après kill -9"
 
+# Reproduit la fin d'un postStartCommand dans un codespace : le groupe de
+# processus qui a lancé r510-neo4j start reçoit SIGTERM. Neo4j doit y survivre
+# (il tourne dans sa propre session).
+etape "Neo4j survit à la fin du groupe de processus qui l'a démarré"
+r510-neo4j stop > /dev/null
+avant=$(grep -c 'shutdown initiated' "$NEO4J_DIR/logs/neo4j.log" || true)
+(cd "$depot" && setsid bash -c 'r510-neo4j start > /dev/null 2>&1; kill -TERM 0') || true
+sleep 20
+apres=$(grep -c 'shutdown initiated' "$NEO4J_DIR/logs/neo4j.log" || true)
+[ "$apres" = "$avant" ] || echec "Neo4j s'est arrêté avec le groupe de processus qui l'a lancé"
+r510-neo4j status > /dev/null || echec "Neo4j ne tourne plus après la fin de son groupe de processus"
+
 etape "r510-neo4j reset efface la base et remet le mot de passe du TP"
 r510-neo4j reset < /dev/null > /dev/null 2>&1 && echec "reset sans confirmation a été accepté"
 (cd "$depot" && r510-neo4j reset --oui > /dev/null)

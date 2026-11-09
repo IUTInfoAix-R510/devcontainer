@@ -94,7 +94,13 @@ demarre() {
     # Laissé par un arrêt brutal : neo4j start refuserait de démarrer si son
     # numéro a été repris par un autre processus.
     rm -f "$PIDFILE"
-    if ! neo4j start > "$DIR/logs/start.log" 2>&1; then
+    # Session à part (setsid) : dans un codespace, la fin du postStartCommand
+    # termine tout le groupe de processus qui l'a lancé. Sans setsid, Neo4j
+    # (qui reste dans ce groupe, contrairement à mongod --fork) recevait SIGTERM
+    # trois secondes après avoir démarré (« shutdown initiated by request »,
+    # constaté le 9/11/2026 dans un vrai codespace). -w attend la fin de
+    # neo4j start, pour garder son code de retour.
+    if ! setsid -w neo4j start > "$DIR/logs/start.log" 2>&1; then
         echo "Neo4j n'a pas démarré :" >&2
         cat "$DIR/logs/start.log" >&2
         exit 1

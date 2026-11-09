@@ -7,7 +7,7 @@
   // Image publiée par IUTInfoAix-R510/devcontainer, tag épinglé, jamais
   // `latest`. Extensions, réglages VS Code, utilisateur vscode et ports sont
   // inscrits dans l'image : rien à répéter ici.
-  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.1",
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.2",
   // Répété ici et non seulement dans l'image : Codespaces choisit la machine
   // avant de télécharger l'image. 2 cœurs et 8 Go, la machine par défaut.
   "hostRequirements": { "cpus": 2, "memory": "8gb" },

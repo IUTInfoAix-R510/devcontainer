@@ -90,7 +90,7 @@ Le workflow [devcontainer.yml](.github/workflows/devcontainer.yml) vérifie d'ab
 
 **Lancez-le à la main la veille d'une séance** (onglet Actions, workflow `devcontainer`, **Run workflow**).
 
-Tant que la version `2026.11.1` n'est pas publiée, les quatre jobs « image distribuée » et « modèle » échouent : c'est attendu.
+Tant qu'une nouvelle version n'est pas publiée, les quatre jobs « image distribuée » et « modèle » échouent sur une branche qui y renvoie déjà : c'est attendu. D'où l'ordre de la section suivante.
 
 Les workflows portent la garde `if: github.repository == 'IUTInfoAix-R510/devcontainer'` : ils ne tournent pas dans un fork.
 
@@ -210,6 +210,19 @@ Mesures locales du 9 novembre 2026, avec la CLI `devcontainer` 0.89.0 et Docker 
 Couches les plus lourdes de l'image (décompressées) : MongoDB 770 Mo (mongod et mongosh pèsent chacun près de 300 Mo), Temurin 317 Mo, Neo4j 272 Mo, Node 143 Mo, gh 44 Mo, sshd 28 Mo, gh student 10 Mo.
 
 Dans une copie de tp1-graphe ouverte avec le modèle Neo4j, le `postCreateCommand` installe les 15 paquets de `.github/scripts` en une seconde, puis `npm run seed`, `npm run check` et le `LOAD CSV` de `emprunts.csv` (48 lignes) fonctionnent. `@neo4j-cypher/language-support` 2.0.0-next.38 demande Node 24.11.1 ou plus : c'est la raison du passage de l'image à Node 24 (avec Node 22, npm affichait `EBADENGINE`).
+
+### Essai dans un vrai codespace (9 novembre 2026)
+
+Codespace 2 cœurs créé par `nedseb` sur un dépôt privé de `IUTInfoAix-R510-2026` (`test-codespaces`), avec le modèle projet avec bonus et l'image `2026.11.1` :
+
+- **facturation** : « Codespaces usage for this repository is paid for by nedseb ». Le réglage « User ownership » de l'organisation est actif, chaque compte paie sur son quota ;
+- **création** : 60 s entre la demande et l'état « Available » ;
+- **hôte** : noyau `6.8.0-1064-azure`, 2 cœurs, 7,9 Go de mémoire, 32 Go de disque dont 21 Go occupés ;
+- **MongoDB** démarre, le playground de test s'exécute avec `mongosh --file` ;
+- **Neo4j s'arrêtait trois secondes après son démarrage** (« Neo4j Server shutdown initiated by request » dans `neo4j.log`). Dans un codespace, la fin du `postStartCommand` termine tout le groupe de processus qui l'a lancé. `mongod --fork` sort de ce groupe, `neo4j start` non. Corrigé dans l'image `2026.11.2` : `r510-neo4j` lance `setsid -w neo4j start`. Le smoke-test reproduit la situation (étape « Neo4j survit à la fin du groupe de processus qui l'a démarré »). Ni la CLI `devcontainer` ni les workflows ne la reproduisaient ;
+- avec ce correctif appliqué à la main dans le codespace : la médiathèque de tp1-graphe se charge en 7 s (43 exemplaires, 26 livres, 18 auteurs, 14 membres, 11 catégories), `LOAD CSV` lit les 48 lignes de `emprunts.csv`, MongoDB occupe 150 Mo et Neo4j 814 Mo ;
+- **`LOAD CSV FROM "https://…"` fonctionne** : le codespace a accès au réseau. Sans conséquence pour l'étudiant, mais la notation ne doit pas exécuter ses requêtes avec le même accès ;
+- **`gh auth status`** dans une session `gh codespace ssh` : aucun compte connecté, et `GITHUB_TOKEN` n'est pas défini dans cette session. Il reste à regarder le terminal de VS Code, où Codespaces le définit.
 
 ### À vérifier dans un vrai codespace
 
