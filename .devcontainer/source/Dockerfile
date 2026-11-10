@@ -190,6 +190,9 @@ ENV NEO4J_HOME=/opt/neo4j
 # s'ajouterait à celle du dépôt au lieu d'être remplacée par elle.
 COPY mongod.conf /usr/local/etc/mongod.conf
 COPY r510-mongo r510-neo4j /usr/local/bin/
-RUN chmod 644 /usr/local/etc/mongod.conf \
+# Message d'accueil du premier terminal, en français. L'image de base affiche ce fichier
+# s'il existe (/etc/zsh/zshrc, /etc/bash.bashrc), à la place du message anglais de Codespaces.
+COPY first-run-notice.txt /usr/local/etc/vscode-dev-containers/first-run-notice.txt
+RUN chmod 644 /usr/local/etc/mongod.conf /usr/local/etc/vscode-dev-containers/first-run-notice.txt \
     && chmod 755 /usr/local/bin/r510-mongo /usr/local/bin/r510-neo4j \
     && install -d -o vscode -g vscode /home/vscode/.local/share/mongodb /home/vscode/.local/share/mongodb/db

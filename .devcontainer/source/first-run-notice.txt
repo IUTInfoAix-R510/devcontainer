@@ -1,0 +1,9 @@
+👋 Bienvenue dans votre codespace de R5.Real.10, Nouveaux paradigmes de base de données.
+
+📖 L'énoncé est le README.md du dépôt (clic droit sur le fichier, puis « Ouvrir l'aperçu »).
+🍃 MongoDB démarre tout seul avec le codespace : vérifiez-le avec r510-mongo status.
+   Neo4j se démarre avec r510-neo4j start, seulement quand l'énoncé le demande.
+✅ Les commandes du TP (données, correcteur automatique, rendu) sont décrites dans le README.
+⏹️ En fin de séance, arrêtez le codespace (menu Codespaces, puis Stop codespace) :
+   un codespace allumé consomme votre quota.
+

@@ -12,7 +12,7 @@ L'image est construite une fois ici, testée, puis publiée sur ghcr.io sous un 
 
 ## Contenu de l'image
 
-`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.2`, amd64 seulement (l'architecture de Codespaces).
+`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.3`, amd64 seulement (l'architecture de Codespaces).
 
 | Outil | Version | Usage |
 |---|---|---|
@@ -53,7 +53,7 @@ Par exemple, pour le TP1 :
 ```jsonc
 {
   "name": "R5.Real.10 : TP1 MongoDB",
-  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.2",
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.3",
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
   "postStartCommand": "r510-mongo start"
 }

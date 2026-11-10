@@ -80,6 +80,11 @@ for s in bash zsh; do
     done
 done
 
+etape "Le message d'accueil du premier terminal est en français"
+grep -q "^👋 Bienvenue dans votre codespace de R5.Real.10" /usr/local/etc/vscode-dev-containers/first-run-notice.txt \
+    || echec "first-run-notice.txt absent ou pas en français"
+grep -q "first-run-notice.txt" /etc/zsh/zshrc || echec "zshrc n'affiche plus first-run-notice.txt"
+
 etape "gh student est installé et figé en v1.59.0"
 # `gh extension list` refuse de s'exécuter sans authentification, même s'il ne
 # fait aucune requête : un jeton factice suffit (dans un codespace, GITHUB_TOKEN
