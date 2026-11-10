@@ -48,7 +48,7 @@
         "mongodb.mongodb-vscode",
         // Playground Neo4j (.cypher) : connexion, exécution, coloration.
         "neo4j-extensions.neo4j-for-vscode",
-        // Projet SteamCity (Java, Maven wrapper).
+        // Projet (Java, Maven wrapper).
         "vscjava.vscode-java-pack",
         // Copilot Chat sert de tuteur ; ses réponses sont cadrées par
         // .github/copilot-instructions.md dans chaque dépôt.

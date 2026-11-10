@@ -1,6 +1,6 @@
 # Image du Codespace de R5.Real.10
 
-Ce dépôt fabrique et publie l'image Docker de tous les Codespaces de la ressource R5.Real.10 « Nouveaux paradigmes de base de données » (BUT Informatique, 3e année, IUT d'Aix-Marseille) : TP MongoDB, TP Neo4j et projet SteamCity.
+Ce dépôt fabrique et publie l'image Docker de tous les Codespaces de la ressource R5.Real.10 « Nouveaux paradigmes de base de données » (BUT Informatique, 3e année, IUT d'Aix-Marseille) : TP MongoDB, TP Neo4j et projet.
 
 Il s'adresse aux enseignants qui maintiennent les dépôts modèles de la ressource. Les étudiants n'ont rien à faire ici : leur codespace télécharge l'image tout seul. La partie [Dépannage](#dépannage-côté-étudiant) leur est destinée, et peut être reprise dans le README de chaque TP.
 
@@ -21,7 +21,7 @@ L'image est construite une fois ici, testée, puis publiée sur ghcr.io sous un 
 | MongoDB Database Tools | 100.20.1 | `mongoimport`, `mongodump`… |
 | Neo4j Community | 2026.10.1 | TP4, bonus du projet |
 | cypher-shell | 2026.10.1 | shell Neo4j |
-| Java (Eclipse Temurin) | 25.0.5 | projet SteamCity (`./mvnw`), et Neo4j |
+| Java (Eclipse Temurin) | 25.0.5 | projet (`./mvnw`), et Neo4j |
 | Node.js | 24.22.2 (LTS) | correcteurs automatiques, scripts de chargement |
 | GitHub CLI | 2.103.3 | |
 | gh student (Classroom 50) | v1.59.0 | secours pour les rendus, qui se font par tag `submit/…` |
@@ -45,8 +45,8 @@ Copiez le modèle qui correspond au dépôt dans son `.devcontainer/devcontainer
 |---|---|---|---|---|
 | tp1, tp2, tp3 | `.devcontainer/devcontainer.json` | [exemples/mongodb](exemples/mongodb/devcontainer.json) | MongoDB | `r510-mongo start` |
 | tp4 Neo4j (nouveau dépôt, issu de tp1-graphe) | `.devcontainer/devcontainer.json` | [exemples/neo4j](exemples/neo4j/devcontainer.json) | Neo4j | `r510-neo4j start` |
-| projet SteamCity | `.devcontainer/devcontainer.json` | [exemples/mongodb](exemples/mongodb/devcontainer.json) | MongoDB | `r510-mongo start` |
-| projet SteamCity, bonus Neo4j | `.devcontainer/bonus-neo4j/devcontainer.json` | [exemples/projet-bonus](exemples/projet-bonus/devcontainer.json) | les deux | `r510-mongo start` et `r510-neo4j start`, en parallèle |
+| projet | `.devcontainer/devcontainer.json` | [exemples/mongodb](exemples/mongodb/devcontainer.json) | MongoDB | `r510-mongo start` |
+| projet, bonus Neo4j | `.devcontainer/bonus-neo4j/devcontainer.json` | [exemples/projet-bonus](exemples/projet-bonus/devcontainer.json) | les deux | `r510-mongo start` et `r510-neo4j start`, en parallèle |
 
 Par exemple, pour le TP1 :
 

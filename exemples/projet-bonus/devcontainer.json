@@ -1,10 +1,10 @@
 {
-  // Modèle de configuration distribuée pour le projet SteamCity avec le bonus
+  // Modèle de configuration distribuée pour le projet avec le bonus
   // Neo4j : Java, MongoDB et Neo4j. Dans le dépôt modèle du projet, il se place
   // en .devcontainer/bonus-neo4j/devcontainer.json, à côté de la configuration
   // par défaut (exemples/mongodb). Une équipe qui prend le bonus le choisit
   // avec « New with options… » à la création de son codespace.
-  "name": "R5.Real.10 : projet SteamCity avec le bonus Neo4j",
+  "name": "R5.Real.10 : projet avec le bonus Neo4j",
   // Image publiée par IUTInfoAix-R510/devcontainer, tag épinglé, jamais
   // `latest`. Extensions (dont le pack Java), réglages VS Code, utilisateur
   // vscode et ports sont inscrits dans l'image : rien à répéter ici.

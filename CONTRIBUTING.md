@@ -180,7 +180,7 @@ Chaque téléchargement du Dockerfile est figé sur une version **et** vérifié
 
 **Copilot en tuteur.** Copilot Chat est installé, mais `github.copilot.enable` coupe les complétions automatiques pendant la frappe, comme dans IntroPython : l'étudiant écrit son code, Copilot ne répond que dans le chat.
 
-**Pas de Maven dans l'image.** Le projet SteamCity utilise le wrapper `./mvnw`, qui télécharge Maven et les dépendances dans `~/.m2` à la première compilation. Le smoke-test vérifie seulement `JAVA_HOME`, dont le wrapper se sert.
+**Pas de Maven dans l'image.** Le projet utilise le wrapper `./mvnw`, qui télécharge Maven et les dépendances dans `~/.m2` à la première compilation. Le smoke-test vérifie seulement `JAVA_HOME`, dont le wrapper se sert.
 
 **Pas de variables d'environnement de connexion.** Les correcteurs et scripts des TP ont déjà `mongodb://localhost:27017` et `bolt://localhost:7687` par défaut. Un `MONGODB_URI` défini dans l'image l'emporterait sur le `.env` du tp2, que dotenv ne remplace pas.
 

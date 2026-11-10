@@ -1,7 +1,7 @@
 # Image du Codespace de R5.Real.10 : tout ce qui s'installe l'est ici, à la
 # construction, et non dans une commande de cycle de vie relancée à chaque
 # création de conteneur. Une seule image pour tous les dépôts de la ressource
-# (tp1 à tp3, tp4 Neo4j, projet SteamCity) : MongoDB, Neo4j, Java, Node, gh et
+# (tp1 à tp3, tp4 Neo4j, projet) : MongoDB, Neo4j, Java, Node, gh et
 # gh student. Elle est publiée sur ghcr.io par
 # .github/workflows/devcontainer-publish.yml.
 #
@@ -64,8 +64,8 @@ RUN set -eu; \
     rm -rf /var/lib/apt/lists/*; \
     mongod --version | grep -q '^db version v9\.0\.4$'
 
-# Java 25 : Eclipse Temurin 25.0.5+8 (JDK complet : javac pour le projet
-# SteamCity, que ./mvnw compile). Archive officielle, somme SHA-256 de la page
+# Java 25 : Eclipse Temurin 25.0.5+8 (JDK complet : javac pour le projet,
+# que ./mvnw compile). Archive officielle, somme SHA-256 de la page
 # de la version (identique à celle de l'API Adoptium). Neo4j 2026.10 accepte
 # Java 21 et Java 25 : un seul JDK suffit, pas de second JAVA_HOME.
 # Liens dans /usr/local/bin plutôt que PATH : le /etc/profile de Debian remet

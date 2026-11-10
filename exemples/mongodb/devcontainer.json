@@ -1,6 +1,6 @@
 {
   // Modèle de configuration distribuée pour un dépôt MongoDB : tp1, tp2, tp3 et
-  // projet SteamCity (configuration par défaut, sans le bonus Neo4j). À copier
+  // projet (configuration par défaut, sans le bonus Neo4j). À copier
   // dans le .devcontainer/devcontainer.json du dépôt, en changeant "name" et en
   // ajoutant, si le dépôt en a, l'installation de ses dépendances npm (README).
   "name": "R5.Real.10 : TP MongoDB",
