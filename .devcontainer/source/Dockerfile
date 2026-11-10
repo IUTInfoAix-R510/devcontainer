@@ -190,9 +190,12 @@ ENV NEO4J_HOME=/opt/neo4j
 # s'ajouterait à celle du dépôt au lieu d'être remplacée par elle.
 COPY mongod.conf /usr/local/etc/mongod.conf
 COPY r510-mongo r510-neo4j /usr/local/bin/
+# Commandes des étudiants : r510-sauver (add, commit, push) et r510-rendre (score indicatif,
+# puis commit, push et tag submit/…). Elles affichent chaque commande git avant de la lancer.
+COPY r510-sauver r510-rendre /usr/local/bin/
 # Message d'accueil du premier terminal, en français. L'image de base affiche ce fichier
 # s'il existe (/etc/zsh/zshrc, /etc/bash.bashrc), à la place du message anglais de Codespaces.
 COPY first-run-notice.txt /usr/local/etc/vscode-dev-containers/first-run-notice.txt
 RUN chmod 644 /usr/local/etc/mongod.conf /usr/local/etc/vscode-dev-containers/first-run-notice.txt \
-    && chmod 755 /usr/local/bin/r510-mongo /usr/local/bin/r510-neo4j \
+    && chmod 755 /usr/local/bin/r510-mongo /usr/local/bin/r510-neo4j /usr/local/bin/r510-sauver /usr/local/bin/r510-rendre \
     && install -d -o vscode -g vscode /home/vscode/.local/share/mongodb /home/vscode/.local/share/mongodb/db

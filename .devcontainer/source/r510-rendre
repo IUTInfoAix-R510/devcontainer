@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# r510-rendre : rend le TP en cours pour qu'il soit noté (R5.Real.10).
+# Fait, en les affichant, les commandes git du rendu par tag décrit dans le README.
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage : r510-rendre [--oui] [--sans-check]
+
+Rend votre travail : Classroom 50 le note avec le correcteur automatique et publie
+le résultat dans une Release de votre dépôt, 2 à 5 minutes plus tard.
+
+La commande fait, dans l'ordre, ce que vous pourriez taper vous-même :
+  1. npm run check                       score indicatif, si le TP en a un
+  2. git add -A                          prend toutes vos modifications
+     git commit -m "rendu"               les enregistre (s'il y en a)
+  3. git push                            les envoie sur GitHub
+  4. git tag submit/AAAAMMJJ-HHMMSS      marque ce rendu
+     git push origin submit/…            l'envoie : c'est ce qui déclenche la note
+
+Chaque tag submit/… est un rendu : trois au plus par TP. La commande vous dit
+lequel ce sera et demande confirmation avant de rendre.
+
+  --oui         ne pas demander de confirmation
+  --sans-check  ne pas lancer npm run check
+EOF
+}
+
+oui=0
+check=1
+for a in "$@"; do
+    case "$a" in
+        --oui) oui=1 ;;
+        --sans-check) check=0 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Option inconnue : $a" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+die() { printf '✗ %s\n' "$*" >&2; exit 1; }
+# Affiche la commande (avec des guillemets autour des arguments qui contiennent une espace), puis la lance.
+run() {
+    local a ligne="→"
+    for a in "$@"; do
+        case "$a" in *" "*) ligne="$ligne \"$a\"" ;; *) ligne="$ligne $a" ;; esac
+    done
+    printf '%s\n' "$ligne"
+    "$@"
+}
+
+racine=$(git rev-parse --show-toplevel 2>/dev/null) || die "Lancez r510-rendre dans le dossier de votre TP (un dépôt git)."
+cd "$racine"
+
+branche=$(git rev-parse --abbrev-ref HEAD)
+[ "$branche" = "main" ] || die "Vous êtes sur la branche « $branche » : le rendu se fait depuis main (git switch main)."
+
+# 1. Score indicatif.
+if [ "$check" -eq 1 ] && [ -f package.json ] && grep -q '"check"' package.json; then
+    printf '→ npm run check\n'
+    sortie=$(npm run --silent check 2>&1) || true
+    score=$(printf '%s\n' "$sortie" | grep -E '^Score' | head -1)
+    if [ -n "$score" ]; then
+        printf '  %s (indicatif)\n' "$score"
+    else
+        printf '%s\n' "$sortie" | tail -5
+        printf '  Le correcteur automatique n'"'"'a pas pu donner de score : vérifiez avec npm run check.\n'
+    fi
+fi
+
+# Numéro du rendu.
+deja=$(git ls-remote --tags origin 'refs/tags/submit/*' 2>/dev/null | grep -vc '\^{}$' || true)
+[ -n "$deja" ] || deja=$(git tag -l 'submit/*' | wc -l)
+numero=$((deja + 1))
+if [ "$numero" -gt 3 ]; then
+    printf '⚠️  Ce serait votre rendu n° %s, alors que la consigne est de trois rendus au plus par TP.\n' "$numero"
+else
+    printf 'Ce sera votre rendu n° %s (trois au plus par TP).\n' "$numero"
+fi
+
+# Confirmation : seulement par la personne au clavier.
+if [ "$oui" -eq 0 ]; then
+    [ -t 0 ] || die "Pas de terminal interactif : relancez r510-rendre vous-même dans le terminal."
+    read -r -p "Rendre maintenant ? [o/N] " reponse
+    case "$reponse" in
+        o|O|oui|Oui|OUI|y|Y|yes) ;;
+        *) echo "Rien n'a été rendu."; exit 0 ;;
+    esac
+fi
+
+# 2. Enregistrer.
+run git add -A
+if git diff --cached --quiet; then
+    echo "  (rien de nouveau à enregistrer depuis le dernier commit)"
+else
+    # Le hook pre-commit du TP peut restaurer des fichiers de configuration, voire arrêter
+    # un commit qui ne contenait qu'eux : dans ce cas on rend le dernier commit.
+    run git commit -m "rendu" || echo "  (commit non fait : on rend le dernier commit)"
+fi
+
+# 3. Envoyer.
+run git push || die "Le push a échoué : votre travail n'est pas rendu. Lisez le message ci-dessus."
+
+# 4. Marquer et envoyer le rendu.
+tag="submit/$(TZ=Europe/Paris date +%Y%m%d-%H%M%S)"
+run git tag "$tag"
+run git push origin "$tag" || die "Le tag $tag n'a pas pu être envoyé : votre travail n'est pas rendu."
+
+depot=$(git remote get-url origin | sed -E 's#^(https://|git@)github\.com[:/]##; s#\.git$##')
+echo
+echo "✅ Rendu n° $numero envoyé : $tag"
+echo "   La note apparaît dans 2 à 5 minutes dans la Release de ce rendu :"
+echo "   https://github.com/$depot/releases/tag/$tag"

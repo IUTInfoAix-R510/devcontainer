@@ -12,7 +12,7 @@ L'image est construite une fois ici, testée, puis publiée sur ghcr.io sous un 
 
 ## Contenu de l'image
 
-`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.3`, amd64 seulement (l'architecture de Codespaces).
+`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.4`, amd64 seulement (l'architecture de Codespaces).
 
 | Outil | Version | Usage |
 |---|---|---|
@@ -53,7 +53,7 @@ Par exemple, pour le TP1 :
 ```jsonc
 {
   "name": "R5.Real.10 : TP1 MongoDB",
-  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.3",
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.4",
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
   "postStartCommand": "r510-mongo start"
 }
@@ -91,6 +91,17 @@ Les deux commandes s'utilisent de la même façon, dans le terminal du codespace
 | `r510-mongo log`, `r510-neo4j log` | affiche la fin du journal |
 
 Les données sont dans le home de `vscode` (`~/.local/share/mongodb`, `~/.local/share/neo4j`). Elles survivent à l'arrêt et à la reprise du codespace, **pas** à un « Rebuild Container », qui repart de l'image. L'arrêt du codespace n'arrête pas les bases proprement : elles sont tuées avec le conteneur, et repartent à la reprise sur leur journal (WiredTiger pour MongoDB, journaux de transactions pour Neo4j).
+
+## Commandes de sauvegarde et de rendu
+
+Deux commandes évitent aux étudiants de taper les commandes git du rendu. Elles affichent chaque commande git avant de la lancer, et `--help` détaille les étapes.
+
+| Commande | Effet |
+|---|---|
+| `r510-sauver ["message"]` | `git add -A`, `git commit` (message par défaut : « sauvegarde »), `git push`. Ce n'est pas un rendu : rien n'est noté. |
+| `r510-rendre` | `npm run check` (score indicatif, si le TP en a un), annonce le numéro du rendu (trois au plus par TP), demande confirmation, puis `git add -A`, `git commit -m "rendu"`, `git push`, `git tag submit/AAAAMMJJ-HHMMSS` et `git push origin submit/…`. Donne le lien de la Release où la note apparaît. Options : `--oui` (sans confirmation), `--sans-check`. |
+
+`r510-rendre` refuse de tourner sans terminal interactif, sauf avec `--oui`, et seulement depuis la branche `main`. Les assistants IA des dépôts de TP n'ont pas le droit de la lancer (garde `.agents/garde-tuteur.mjs`).
 
 ## Dépannage côté étudiant
 

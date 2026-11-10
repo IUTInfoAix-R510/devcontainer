@@ -85,6 +85,22 @@ grep -q "^👋 Bienvenue dans votre codespace de R5.Real.10" /usr/local/etc/vsco
     || echec "first-run-notice.txt absent ou pas en français"
 grep -q "first-run-notice.txt" /etc/zsh/zshrc || echec "zshrc n'affiche plus first-run-notice.txt"
 
+etape "r510-sauver et r510-rendre : aide, puis un rendu sur un dépôt factice"
+r510-sauver --help | grep -q "Ce n'est PAS un rendu" || echec "r510-sauver --help"
+r510-rendre --help | grep -q "git tag submit/" || echec "r510-rendre --help"
+ESSAI=$(mktemp -d)
+(
+    cd "$ESSAI" && git init -q --bare -b main distant.git && git clone -q distant.git tp 2>/dev/null && cd tp
+    git config user.name essai && git config user.email essai@exemple.fr
+    echo a > f && git add f && git commit -qm init && git push -q -u origin main 2>/dev/null
+    echo b >> f && r510-sauver "essai" >/dev/null
+    echo c >> f
+    r510-rendre < /dev/null >/dev/null 2>&1 && exit 11          # sans terminal ni --oui : refus
+    r510-rendre --oui --sans-check >/dev/null 2>&1 || exit 12
+    git ls-remote --tags origin 'refs/tags/submit/*' | grep -q submit/ || exit 13
+) || echec "r510-sauver / r510-rendre sur un dépôt factice (code $?)"
+rm -rf "$ESSAI"
+
 etape "gh student est installé et figé en v1.59.0"
 # `gh extension list` refuse de s'exécuter sans authentification, même s'il ne
 # fait aucune requête : un jeton factice suffit (dans un codespace, GITHUB_TOKEN

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# r510-sauver : sauvegarde le travail sur GitHub, sans le rendre (R5.Real.10).
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage : r510-sauver ["message du commit"]
+
+Sauvegarde votre travail sur GitHub. Ce n'est PAS un rendu : rien n'est noté
+(pour être noté : r510-rendre).
+
+La commande fait, dans l'ordre, ce que vous pourriez taper vous-même :
+  1. git add -A                     prend toutes vos modifications
+  2. git commit -m "<message>"      les enregistre (message par défaut : « sauvegarde »)
+  3. git push                       les envoie sur GitHub
+EOF
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+esac
+
+die() { printf '✗ %s\n' "$*" >&2; exit 1; }
+# Affiche la commande (avec des guillemets autour des arguments qui contiennent une espace), puis la lance.
+run() {
+    local a ligne="→"
+    for a in "$@"; do
+        case "$a" in *" "*) ligne="$ligne \"$a\"" ;; *) ligne="$ligne $a" ;; esac
+    done
+    printf '%s\n' "$ligne"
+    "$@"
+}
+
+racine=$(git rev-parse --show-toplevel 2>/dev/null) || die "Lancez r510-sauver dans le dossier de votre TP (un dépôt git)."
+cd "$racine"
+
+run git add -A
+if git diff --cached --quiet; then
+    echo "  (rien de nouveau à enregistrer depuis le dernier commit)"
+else
+    run git commit -m "${1:-sauvegarde}" || echo "  (commit non fait, voir le message ci-dessus)"
+fi
+run git push || die "Le push a échoué : votre travail est enregistré dans le codespace, pas sur GitHub."
+
+echo
+echo "✅ Travail sauvegardé sur GitHub. Ce n'est pas un rendu : pour être noté, r510-rendre."
