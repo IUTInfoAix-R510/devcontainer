@@ -75,7 +75,7 @@ echo "node $(node --version), $(gh --version | head -1)"
 # /etc/profile de Debian le remet à zéro, d'où les liens dans /usr/local/bin.
 etape "Les outils sont trouvés dans un shell de connexion (bash et zsh)"
 for s in bash zsh; do
-    for c in java javac mongosh mongoimport neo4j cypher-shell node npm gh r510-mongo r510-neo4j; do
+    for c in java javac mongosh mongoimport neo4j cypher-shell node npm gh r510-mongo r510-neo4j r510-sauver r510-rendre; do
         $s -lc "command -v $c" > /dev/null || echec "$c introuvable dans un shell de connexion $s"
     done
 done
@@ -85,21 +85,10 @@ grep -q "^👋 Bienvenue dans votre codespace de R5.Real.10" /usr/local/etc/vsco
     || echec "first-run-notice.txt absent ou pas en français"
 grep -q "first-run-notice.txt" /etc/zsh/zshrc || echec "zshrc n'affiche plus first-run-notice.txt"
 
-etape "r510-sauver et r510-rendre : aide, puis un rendu sur un dépôt factice"
-r510-sauver --help | grep -q "Ce n'est PAS un rendu" || echec "r510-sauver --help"
-r510-rendre --help | grep -q "git tag submit/" || echec "r510-rendre --help"
-ESSAI=$(mktemp -d)
-(
-    cd "$ESSAI" && git init -q --bare -b main distant.git && git clone -q distant.git tp 2>/dev/null && cd tp
-    git config user.name essai && git config user.email essai@exemple.fr
-    echo a > f && git add f && git commit -qm init && git push -q -u origin main 2>/dev/null
-    echo b >> f && r510-sauver "essai" >/dev/null
-    echo c >> f
-    r510-rendre < /dev/null >/dev/null 2>&1 && exit 11          # sans terminal ni --oui : refus
-    r510-rendre --oui --sans-check >/dev/null 2>&1 || exit 12
-    git ls-remote --tags origin 'refs/tags/submit/*' | grep -q submit/ || exit 13
-) || echec "r510-sauver / r510-rendre sur un dépôt factice (code $?)"
-rm -rf "$ESSAI"
+# Dépôts git factices, avec un dépôt nu local en guise de GitHub : un TP
+# (r510-tp1-…) et le projet (r510-projet-group-…). Voir essais-rendu.sh.
+etape "r510-sauver et r510-rendre, sur un TP et sur le projet factices"
+sh "$(dirname "$0")/essais-rendu.sh" || echec "r510-sauver / r510-rendre (essais-rendu.sh)"
 
 etape "gh student est installé et figé en v1.59.0"
 # `gh extension list` refuse de s'exécuter sans authentification, même s'il ne

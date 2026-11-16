@@ -8,13 +8,17 @@ Ce dépôt ne contient que l'image du Codespace de R5.Real.10 : sa recette, son 
 .devcontainer/
 ├── devcontainer.json          configuration distribuée de CE dépôt (image publiée, les deux bases)
 ├── smoke-test.sh              smoke-test, lancé avant toute publication et chaque semaine
+├── essais-rendu.sh            essais de r510-sauver et r510-rendre, sans réseau (lancés par le smoke-test)
 └── source/                    configuration source : construction de l'image, et secours
     ├── Dockerfile             tout ce qui s'installe, versions figées et sommes SHA-256
     ├── devcontainer.json      feature sshd, extensions, réglages VS Code, remoteUser, ports
     ├── devcontainer-lock.json version et digest de la feature sshd
     ├── mongod.conf            MongoDB sans root, cache de 0,25 Go
+    ├── first-run-notice.txt   message d'accueil du premier terminal, en français
     ├── r510-mongo             start | stop | status | reset | log
-    └── r510-neo4j             start | stop | status | reset | log
+    ├── r510-neo4j             start | stop | status | reset | log
+    ├── r510-sauver            add, commit, push (push -u sur une nouvelle branche)
+    └── r510-rendre            rendu par tag submit/… (règles des TP ou du projet)
 exemples/
 ├── mongodb/devcontainer.json       tp1 à tp3, projet (configuration par défaut)
 ├── neo4j/devcontainer.json         tp4 Neo4j (issu de tp1-graphe)
@@ -78,11 +82,18 @@ Le smoke-test ([.devcontainer/smoke-test.sh](.devcontainer/smoke-test.sh)) véri
 - pour chaque base : `stop` et `start` deux fois de suite sans erreur, processus de `vscode`, écriture et lecture, données conservées après un redémarrage et après un `kill -9` (ce que subissent les bases à l'arrêt d'un codespace), `reset` refusé sans confirmation puis effectif avec `--oui` ;
 - MongoDB : cache WiredTiger de 0,25 Go, `mongoimport` ;
 - Neo4j : un `neo4j.pid` dont le numéro a été repris par un autre processus n'empêche pas le démarrage, et ce processus n'est pas tué ; mot de passe `mediatheque` ; `LOAD CSV` depuis le `data/` d'un dépôt, y compris après un `start` lancé depuis un sous-dossier ou hors du dépôt ;
+- `r510-sauver` et `r510-rendre` ([.devcontainer/essais-rendu.sh](.devcontainer/essais-rendu.sh)), sur un TP et sur le projet factices, chacun cloné d'un dépôt nu local qui joue GitHub : premier push d'une nouvelle branche avec `-u`, refus hors de `main`, sans terminal ou en HEAD détachée, score indicatif, numéro du rendu et règle annoncée (trois rendus et note pour un TP ; cinq rendus, rendus des coéquipiers comptés, avertissement avant un sixième et accusé de réception pour le projet), push de `main` en retard refusé sans tag, détection du projet par ses fichiers ;
 - `javac` compile et `java` exécute, y compris un fichier source compact de Java 25 ;
 - la mémoire résidente des deux bases au repos et leur place sur le disque sont affichées ;
 - les ports 27017, 7474 et 7687 n'écoutent que sur localhost.
 
-Il dure deux à trois minutes, dont une cinquantaine de secondes d'arrêts de Neo4j. Il efface les données des deux bases : ne le lancez pas dans un codespace où elles comptent.
+Les essais des deux commandes se lancent aussi seuls, sans l'image ni Docker, sur les sources (quelques secondes) :
+
+```bash
+PATH="$PWD/.devcontainer/source:$PATH" sh .devcontainer/essais-rendu.sh
+```
+
+Le smoke-test complet dure deux à trois minutes, dont une cinquantaine de secondes d'arrêts de Neo4j. Il efface les données des deux bases : ne le lancez pas dans un codespace où elles comptent.
 
 ### Vérification continue
 
@@ -221,6 +232,7 @@ Codespace 2 cœurs créé par `nedseb` sur un dépôt privé de `IUTInfoAix-R510
 - **MongoDB** démarre, le playground de test s'exécute avec `mongosh --file` ;
 - **Image 2026.11.3.** Message d'accueil du premier terminal en français : l'image de base affiche `/usr/local/etc/vscode-dev-containers/first-run-notice.txt` s'il existe (`/etc/zsh/zshrc`, `/etc/bash.bashrc`), à la place du message anglais de Codespaces ; source `.devcontainer/source/first-run-notice.txt`, vérifiée par le smoke-test.
 - **Image 2026.11.4.** Commandes `r510-sauver` et `r510-rendre`, qui remplacent les trois commandes git du rendu par tag. Le message d'accueil les mentionne. Le smoke-test les essaie sur un dépôt factice.
+- **Image 2026.11.5.** `r510-rendre` reconnaît le dépôt du projet (nom `r510-projet-…`, à défaut ses fichiers) : cinq rendus au plus, rang du rendu sur 5, avertissement avant un sixième, accusé de réception au lieu de « la note apparaît » ; les messages des TP ne changent pas. Le numéro du rendu se replie sur les tags locaux quand GitHub ne répond pas (il valait toujours 1). `r510-sauver` fait `git push -u origin <branche>` sur une branche sans branche amont. Essais dans `essais-rendu.sh`.
 - **Neo4j s'arrêtait trois secondes après son démarrage** (« Neo4j Server shutdown initiated by request » dans `neo4j.log`). Dans un codespace, la fin du `postStartCommand` termine tout le groupe de processus qui l'a lancé. `mongod --fork` sort de ce groupe, `neo4j start` non. Corrigé dans l'image `2026.11.2` : `r510-neo4j` lance `setsid -w neo4j start`. Le smoke-test reproduit la situation (étape « Neo4j survit à la fin du groupe de processus qui l'a démarré »). Ni la CLI `devcontainer` ni les workflows ne la reproduisaient ;
 - avec ce correctif appliqué à la main dans le codespace : la médiathèque de tp1-graphe se charge en 7 s (43 exemplaires, 26 livres, 18 auteurs, 14 membres, 11 catégories), `LOAD CSV` lit les 48 lignes de `emprunts.csv`, MongoDB occupe 150 Mo et Neo4j 814 Mo ;
 - **`LOAD CSV FROM "https://…"` fonctionne** : le codespace a accès au réseau. Sans conséquence pour l'étudiant, mais la notation ne doit pas exécuter ses requêtes avec le même accès ;

@@ -12,7 +12,7 @@ L'image est construite une fois ici, testée, puis publiée sur ghcr.io sous un 
 
 ## Contenu de l'image
 
-`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.4`, amd64 seulement (l'architecture de Codespaces).
+`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.5`, amd64 seulement (l'architecture de Codespaces).
 
 | Outil | Version | Usage |
 |---|---|---|
@@ -53,7 +53,7 @@ Par exemple, pour le TP1 :
 ```jsonc
 {
   "name": "R5.Real.10 : TP1 MongoDB",
-  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.4",
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.5",
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
   "postStartCommand": "r510-mongo start"
 }
@@ -98,10 +98,19 @@ Deux commandes évitent aux étudiants de taper les commandes git du rendu. Elle
 
 | Commande | Effet |
 |---|---|
-| `r510-sauver ["message"]` | `git add -A`, `git commit` (message par défaut : « sauvegarde »), `git push`. Ce n'est pas un rendu : rien n'est noté. |
-| `r510-rendre` | `npm run check` (score indicatif, si le TP en a un), annonce le numéro du rendu (trois au plus par TP), demande confirmation, puis `git add -A`, `git commit -m "rendu"`, `git push`, `git tag submit/AAAAMMJJ-HHMMSS` et `git push origin submit/…`. Donne le lien de la Release où la note apparaît. Options : `--oui` (sans confirmation), `--sans-check`. |
+| `r510-sauver ["message"]` | `git add -A`, `git commit` (message par défaut : « sauvegarde »), `git push`, sur la branche courante. Sur une nouvelle branche qui n'a pas encore de branche amont, le push est `git push -u origin <branche>`. Ce n'est pas un rendu : rien n'est noté. |
+| `r510-rendre` | `npm run check` (score indicatif, si le TP en a un), annonce le numéro du rendu, demande confirmation, puis `git add -A`, `git commit -m "rendu"`, `git push`, `git tag submit/AAAAMMJJ-HHMMSS` et `git push origin submit/…`. Donne le lien de la Release du rendu. Options : `--oui` (sans confirmation), `--sans-check`. |
 
 `r510-rendre` refuse de tourner sans terminal interactif, sauf avec `--oui`, et seulement depuis la branche `main`. Les assistants IA des dépôts de TP n'ont pas le droit de la lancer (garde `.agents/garde-tuteur.mjs`).
+
+Le numéro du rendu compte les tags `submit/…` déjà poussés sur GitHub, ceux des coéquipiers compris (les tags locaux si GitHub ne répond pas). La règle annoncée dépend du dépôt :
+
+| Dépôt | Rendus | Ce que dit la commande |
+|---|---|---|
+| TP (`r510-tpN-<login>`) | trois au plus | « Ce sera votre rendu n° N (trois au plus par TP) », avertissement au-delà ; la note du correcteur automatique apparaît dans la Release du tag 2 à 5 minutes plus tard |
+| projet (`r510-projet-group-<n>`) | cinq au plus | « Ce sera le rendu n° N sur 5 de votre équipe », avertissement au cinquième, puis avant un sixième, qui ne compte pas ; la Release ne porte qu'un accusé de réception (compilation, chargement, `/api/sante`, outils MCP), ce n'est pas une note ; le dernier des cinq premiers rendus poussé avant la clôture est noté hors ligne |
+
+Le dépôt est reconnu comme celui du projet à son nom (`r510-projet-…`, pris dans l'URL de `origin`, ou dans `GITHUB_REPOSITORY` à défaut) ou, s'il a été renommé, à un fichier qu'aucun TP n'a : `.github/classroom/issues-manifeste.json`, `.github/classroom/issues/` ou `quetes.yml`. Si le push de `main` est refusé parce qu'une Pull Request a été fusionnée entre-temps, la commande conseille `git pull` puis une nouvelle tentative, et ne pose aucun tag.
 
 ## Dépannage côté étudiant
 
