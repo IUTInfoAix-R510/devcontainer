@@ -13,7 +13,7 @@
 # des commits ou un hook global ne fausse pas les essais.
 set -eu
 
-for c in git r510-sauver r510-rendre r510-verifier r510-recharger; do
+for c in git r510-sauver r510-rendre r510-verifier r510-recharger r510-integrer; do
     command -v "$c" > /dev/null || { echo "✗ $c introuvable dans le PATH" >&2; exit 2; }
 done
 
@@ -146,6 +146,91 @@ if command -v script > /dev/null; then
     [ "$(tags_distants)" = 4 ] || echec "un tag a été poussé malgré la réponse « n »"
     ok "r510-rendre interactif : la réponse « n » ne rend rien"
 fi
+
+# ------------------------------------------------------ mise à jour du TP
+echo "→ Mise à jour du TP poussée par l'équipe enseignante"
+nouveau_depot r510-tp1-maj.git maj
+mkdir -p .github data .devcontainer
+printf 'bouge .github\nbouge .devcontainer\nbouge data\nbouge enonce\netudiant reponses\nclassroom50 .github/autograde.yaml\n' > .github/fichiers-du-tp.txt
+printf 'un\ndeux\ntrois\n' > enonce; echo r0 > reponses; echo d > data/d; echo c50 > .github/autograde.yaml; echo v1 > .github/ancien
+git add -A && git commit -qm TP && git push -q 2> /dev/null
+git clone -q "$ESSAI/r510-tp1-maj.git" "$ESSAI/enseignant" 2> /dev/null
+# enseignant CMD : un commit de l'équipe enseignante, poussé sur main.
+enseignant() { (cd "$ESSAI/enseignant" && git pull -q --no-edit 2> /dev/null && sh -c "$1" && git add -A && git commit -qm "Mise à jour" && git push -q 2> /dev/null); }
+
+lance r510-integrer || echec "r510-integrer sans mise à jour"
+[ -s "$SORTIE" ] && echec "r510-integrer parle alors qu'il n'y a rien à intégrer"
+ok "r510-integrer : muet sans mise à jour"
+
+enseignant "echo v2 > .github/nouveau; rm .github/ancien"
+echo r1 >> reponses
+lance r510-integrer --souple || echec "intégration au démarrage"
+[ -f .github/nouveau ] && [ ! -e .github/ancien ] || echec "ajout ou suppression non intégrés"
+grep -qx r1 reponses || echec "réponse non enregistrée perdue au démarrage"
+git diff --quiet -- reponses && echec "réponse non enregistrée commitée au démarrage"
+ok "r510-integrer au démarrage : ajout, suppression, réponse non enregistrée gardée"
+
+enseignant "echo quatre >> enonce"
+lance r510-sauver || echec "r510-sauver alors que l'enseignant a mis à jour"
+git show origin/main:reponses | grep -qx r1 || echec "réponse absente de GitHub"
+git show origin/main:enonce | grep -qx quatre || echec "mise à jour perdue par r510-sauver"
+contient "Mise à jour du TP" || echec "r510-sauver n'annonce pas la mise à jour"
+ok "r510-sauver : intègre puis pousse"
+
+enseignant "sed -i 's/^deux\$/deux corrigé/' enonce"
+echo brouillon >> enonce
+lance r510-integrer --souple || echec "fichier qui bouge modifié localement"
+grep -qx "deux corrigé" enonce || echec "la version enseignante ne l'emporte pas"
+grep -rqx brouillon .git/r510-sauvegarde || echec "modification locale non copiée avant remplacement"
+ok "fichier qui bouge modifié : version enseignante, copie gardée"
+
+sed -i 's/^un$/un bricolé/' enonce && git commit -qam bricolage
+enseignant "sed -i 's/^un\$/un officiel/' enonce"
+lance r510-integrer || echec "conflit sur un fichier qui bouge"
+grep -qx "un officiel" enonce || echec "conflit : la version enseignante ne l'emporte pas"
+git log --format=%s | grep -qx bricolage || echec "conflit : historique de l'étudiant perdu"
+ok "conflit commité sur un fichier qui bouge : résolu, historique gardé"
+
+mkdir -p data; echo local > data/nouveau
+enseignant "echo officiel > data/nouveau"
+lance r510-integrer || echec "fichier non suivi en collision"
+grep -qx officiel data/nouveau || echec "collision : version enseignante absente"
+grep -rqx local .git/r510-sauvegarde || echec "collision : copie absente"
+contient "r510-recharger" || echec "données changées non annoncées"
+ok "fichier non suivi en collision, données changées annoncées"
+
+enseignant "mkdir -p .devcontainer; echo image > .devcontainer/devcontainer.json"
+lance r510-integrer || echec "changement d'environnement"
+contient "Rebuild Container" || echec "reconstruction non annoncée"
+ok "environnement changé : reconstruction annoncée"
+
+enseignant "echo verifie >> data/d"
+echo r2 >> reponses
+lance r510-rendre --oui --sans-check || echec "r510-rendre alors que l'enseignant a mis à jour"
+t=$(git tag -l 'submit/*' | tail -1)
+git show "$t:reponses" | grep -qx r2 || echec "le rendu n'a pas la réponse"
+git show "$t:data/d" | grep -qx verifie || echec "le rendu n'a pas la mise à jour"
+[ "$(tags_distants)" = 1 ] || echec "rendu non poussé"
+ok "r510-rendre : intègre, pousse, tag complet"
+
+enseignant "echo second-codespace > reponses"
+echo ici > reponses
+lance r510-integrer --souple || echec "--souple a fait échouer l'appelant"
+grep -qx ici reponses || echec "réponse locale écrasée au démarrage"
+lance r510-sauver && echec "conflit de réponses accepté"
+contient "rien n'est perdu" || echec "conflit de réponses : message"
+grep -qx ici reponses || echec "réponse locale écrasée"
+git rev-parse -q --verify MERGE_HEAD > /dev/null && echec "fusion laissée en cours"
+git show origin/main:reponses | grep -qx second-codespace || echec "réponse de GitHub écrasée"
+sleep 1
+lance r510-rendre --oui --sans-check && echec "rendu accepté malgré un conflit de réponses"
+[ "$(tags_distants)" = 1 ] || echec "tag poussé malgré un conflit de réponses"
+ok "conflit de réponses : arrêt net, rien de perdu, rien de rendu"
+
+git remote set-url origin "$ESSAI/absent.git"
+lance r510-integrer || echec "GitHub injoignable : r510-integrer échoue"
+contient "GitHub ne répond pas" || echec "GitHub injoignable : message"
+ok "GitHub injoignable : sans blocage"
 
 # ------------------------------------------------------------------ projet
 echo "→ Projet (dépôt r510-projet-group-1)"

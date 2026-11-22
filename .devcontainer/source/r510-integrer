@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# r510-integrer : intègre les mises à jour du TP poussées par l'équipe enseignante (R5.Real.10).
+# L'étudiant n'a pas à la lancer : le démarrage du codespace, r510-sauver et r510-rendre l'appellent.
+#
+# Sans effet hors de main, ou dans un dépôt sans .github/fichiers-du-tp.txt (le projet, par exemple).
+# Ce fichier dit, une ligne par chemin, qui possède quoi :
+#   bouge <chemin>        fichier de l'équipe enseignante : sa version l'emporte
+#   etudiant <chemin>     fichier de l'étudiant : jamais remplacé
+#   classroom50 <chemin>  fichier de Classroom 50 : jamais remplacé
+# Jamais de push, de rebase, de remise ni de perte : ce qui est remplacé est copié dans
+# .git/r510-sauvegarde/ (ou reste dans l'historique), et un vrai conflit arrête tout sans rien changer.
+set -uo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage : r510-integrer [--souple]
+
+Intègre les mises à jour du TP envoyées par l'équipe enseignante, sans toucher à vos réponses.
+Vous n'avez pas à la lancer : le démarrage du codespace, r510-sauver et r510-rendre le font.
+
+  --souple   ne fait jamais échouer la commande appelante (démarrage du codespace)
+EOF
+}
+
+souple=0
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    --souple) souple=1 ;;
+    "") ;;
+    *) usage >&2; exit 2 ;;
+esac
+
+arret() {
+    printf '⚠️  %s\n' "$*" >&2
+    [ "$souple" -eq 1 ] && exit 0
+    exit 1
+}
+
+racine=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$racine" || exit 0
+LISTE=.github/fichiers-du-tp.txt
+git cat-file -e "HEAD:$LISTE" 2>/dev/null || exit 0
+[ "$(git symbolic-ref --short -q HEAD)" = "main" ] || exit 0
+
+exec 9> "$(git rev-parse --git-path r510-integrer.lock)"
+flock -w 30 9 || arret "Une intégration est déjà en cours : relancez dans une minute."
+
+if ! GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q origin main 2>/dev/null; then
+    echo "  (GitHub ne répond pas : mise à jour du TP non vérifiée)"
+    exit 0
+fi
+cible=$(git rev-parse --verify -q refs/remotes/origin/main) || exit 0
+git merge-base --is-ancestor "$cible" HEAD && exit 0
+base=$(git merge-base HEAD "$cible") || arret "Votre branche main et celle de GitHub n'ont pas d'historique commun : prévenez votre enseignant."
+
+mapfile -t regles < <(git show "$cible:$LISTE" 2>/dev/null || git show "HEAD:$LISTE")
+# bouge CHEMIN : vrai pour un fichier de l'équipe enseignante.
+bouge() {
+    local regle qui chemin trouve=1
+    for regle in "${regles[@]}"; do
+        read -r qui chemin <<< "$regle"
+        [ -n "${chemin:-}" ] || continue
+        case "$qui" in bouge|etudiant|classroom50) ;; *) continue ;; esac
+        if [ "$1" = "$chemin" ] || [[ "$1" == "$chemin"/* ]]; then
+            [ "$qui" = "bouge" ] || return 1
+            trouve=0
+        fi
+    done
+    return "$trouve"
+}
+
+mapfile -d '' -t recus < <(git diff --name-only --no-renames -z "$base" "$cible")
+
+# Modifications non enregistrées d'un fichier qui bouge : copiées à part, puis remplacées.
+copies=""
+for f in "${recus[@]}"; do
+    bouge "$f" || continue
+    if git cat-file -e "HEAD:$f" 2>/dev/null; then
+        suivi=1
+        git diff --quiet HEAD -- ":(literal)$f" && continue
+    else
+        suivi=0
+        [ -f "$f" ] || [ -L "$f" ] || continue
+    fi
+    if [ -f "$f" ] || [ -L "$f" ]; then
+        [ -n "$copies" ] || copies="$(git rev-parse --git-path r510-sauvegarde)/$(date +%Y%m%d-%H%M%S)-$$"
+        { mkdir -p "$copies/$(dirname "$f")" && cp -P -- "$f" "$copies/$f"; } \
+            || arret "Copie de $f impossible : mise à jour non intégrée, rien n'est perdu."
+    fi
+    if [ "$suivi" -eq 1 ]; then
+        git restore --source=HEAD --staged --worktree -- ":(literal)$f"
+    else
+        git rm -q --cached --ignore-unmatch -- ":(literal)$f"
+        rm -f -- "$f"
+    fi
+done
+
+message="Intègre la mise à jour du TP"
+fusion() { git -c merge.renames=false -c merge.autostash=false merge -q --no-verify --no-edit -m "$message" "$cible" > /dev/null 2>&1; }
+if ! fusion; then
+    if git rev-parse -q --verify MERGE_HEAD > /dev/null; then
+        mapfile -d '' -t conflits < <(git diff --name-only --diff-filter=U -z)
+        resolu=1
+        [ "${#conflits[@]}" -gt 0 ] || resolu=0
+        for f in "${conflits[@]}"; do bouge "$f" || resolu=0; done
+        if [ "$resolu" -eq 0 ]; then
+            git merge --abort
+            arret "Le même fichier a changé ici et sur GitHub (${conflits[*]:-fusion impossible}) : rien n'a été modifié, rien n'est perdu. Prévenez votre enseignant."
+        fi
+        # Conflit sur les seuls fichiers qui bougent : la version de l'équipe enseignante l'emporte.
+        for f in "${conflits[@]}"; do
+            if git cat-file -e "$cible:$f" 2>/dev/null; then
+                git checkout -q "$cible" -- ":(literal)$f"
+            else
+                git rm -q -f -- ":(literal)$f"
+            fi
+        done
+        if ! git commit -q --no-verify -m "$message"; then
+            git merge --abort
+            arret "Mise à jour du TP impossible : rien n'est perdu. Prévenez votre enseignant."
+        fi
+    else
+        arret "Mise à jour du TP en attente : un de vos fichiers non enregistrés est concerné. Elle sera intégrée au prochain r510-sauver ; si ce message revient, prévenez votre enseignant."
+    fi
+fi
+
+nb=0; reconstruire=0; recharger=0
+for f in "${recus[@]}"; do
+    bouge "$f" || continue
+    nb=$((nb + 1))
+    case "$f" in
+        .devcontainer/*) reconstruire=1 ;;
+        data/*) recharger=1 ;;
+    esac
+done
+[ "$nb" -gt 0 ] || exit 0
+echo "🔄 Mise à jour du TP par l'équipe enseignante intégrée ($nb fichier(s)) : vos réponses ne changent pas."
+[ -z "$copies" ] || echo "   Vos modifications de fichiers qui ne se modifient pas ont été copiées dans $copies"
+[ "$recharger" -eq 0 ] || echo "   Les données du TP ont changé : r510-recharger les remet dans votre base (son contenu est alors remplacé)."
+[ "$reconstruire" -eq 0 ] || echo "   L'environnement a changé : Ctrl+Maj+P, puis « Codespaces: Rebuild Container »."
+exit 0

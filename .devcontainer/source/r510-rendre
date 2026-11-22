@@ -27,6 +27,9 @@ La commande fait, dans l'ordre, ce que vous pourriez taper vous-même :
   4. git tag submit/AAAAMMJJ-HHMMSS      marque ce rendu
      git push origin submit/…            l'envoie : c'est ce qui constitue le rendu
 
+Pour un TP, une mise à jour envoyée par l'équipe enseignante est intégrée avant
+le score et avant le push, sans toucher à vos réponses.
+
 Chaque tag submit/… est un rendu : trois au plus par TP, cinq au plus pour le
 projet. La commande vous dit lequel ce sera et demande confirmation avant de rendre.
 
@@ -81,6 +84,9 @@ fi
 
 branche=$(git rev-parse --abbrev-ref HEAD)
 [ "$branche" = "main" ] || die "Vous êtes sur la branche « $branche » : le rendu se fait depuis main (git switch main)."
+
+# Le score indicatif se calcule sur le TP à jour.
+r510-integrer --souple
 
 # 1. Score indicatif.
 if [ "$check" -eq 1 ] && [ -f package.json ] && grep -q '"check"' package.json; then
@@ -141,6 +147,7 @@ else
 fi
 
 # 3. Envoyer.
+r510-integrer || die "La mise à jour du TP n'a pas pu être intégrée : votre travail n'est pas rendu. Lisez le message ci-dessus."
 if [ "$projet" -eq 1 ]; then
     run git push || die "Le push a échoué : votre travail n'est pas rendu. Lisez le message ci-dessus.
   Si GitHub refuse parce que main a avancé (une Pull Request fusionnée entre-temps) :
