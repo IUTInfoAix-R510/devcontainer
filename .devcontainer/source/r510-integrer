@@ -7,6 +7,7 @@
 #   bouge <chemin>        fichier de l'équipe enseignante : sa version l'emporte
 #   etudiant <chemin>     fichier de l'étudiant : jamais remplacé
 #   classroom50 <chemin>  fichier de Classroom 50 : jamais remplacé
+# Ne touche jamais à une fusion qu'elle n'a pas lancée. Verrou partagé avec r510-sauver et r510-rendre.
 # Jamais de push, de rebase, de remise ni de perte : ce qui est remplacé est copié dans
 # .git/r510-sauvegarde/ (ou reste dans l'historique), et un vrai conflit arrête tout sans rien changer.
 set -uo pipefail
@@ -32,6 +33,7 @@ esac
 
 arret() {
     printf '⚠️  %s\n' "$*" >&2
+    [ -z "${copies:-}" ] || echo "   Vos modifications de fichiers qui ne se modifient pas ont été copiées dans $copies" >&2
     [ "$souple" -eq 1 ] && exit 0
     exit 1
 }
@@ -44,8 +46,10 @@ git cat-file -e "HEAD:$LISTE" 2>/dev/null || exit 0
 
 exec 9> "$(git rev-parse --git-path r510-integrer.lock)"
 flock -w 30 9 || arret "Une intégration est déjà en cours : relancez dans une minute."
+[ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ] || arret "Une fusion est en cours dans ce codespace : rien n'a été modifié. Terminez-la dans l'éditeur, puis lancez r510-sauver."
+git() { command git "$@" 9>&-; }
 
-if ! GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q origin main 2>/dev/null; then
+if ! GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q origin main 2>/dev/null 9>&-; then
     echo "  (GitHub ne répond pas : mise à jour du TP non vérifiée)"
     exit 0
 fi
@@ -73,30 +77,44 @@ mapfile -d '' -t recus < <(git diff --name-only --no-renames -z "$base" "$cible"
 
 # Modifications non enregistrées d'un fichier qui bouge : copiées à part, puis remplacées.
 copies=""
+copier() {
+    [ -n "$copies" ] || copies="$(git rev-parse --git-path r510-sauvegarde)/$(date +%Y%m%d-%H%M%S)-$$"
+    { mkdir -p "$copies/$(dirname "$1")" && cp -a -- "$1" "$copies/$(dirname "$1")/"; } \
+        || arret "Copie de $1 impossible : mise à jour non intégrée, rien n'est perdu."
+}
 for f in "${recus[@]}"; do
     bouge "$f" || continue
+    p=$f
+    while [[ "$p" == */* ]]; do
+        p=${p%/*}
+        if { [ -f "$p" ] || [ -L "$p" ]; } && ! git cat-file -e "HEAD:$p" 2>/dev/null; then
+            copier "$p"
+            git rm -q --cached --ignore-unmatch -- ":(literal)$p"
+            rm -f -- "$p"
+        fi
+    done
     if git cat-file -e "HEAD:$f" 2>/dev/null; then
         suivi=1
-        git diff --quiet HEAD -- ":(literal)$f" && continue
+        if git diff --quiet HEAD -- ":(literal)$f"; then
+            { [ -d "$f" ] && [ ! -L "$f" ] && [ -n "$(git ls-files --others -- ":(literal)$f")" ]; } || continue
+        fi
     else
         suivi=0
-        [ -f "$f" ] || [ -L "$f" ] || continue
+        [ -e "$f" ] || [ -L "$f" ] || continue
     fi
-    if [ -f "$f" ] || [ -L "$f" ]; then
-        [ -n "$copies" ] || copies="$(git rev-parse --git-path r510-sauvegarde)/$(date +%Y%m%d-%H%M%S)-$$"
-        { mkdir -p "$copies/$(dirname "$f")" && cp -P -- "$f" "$copies/$f"; } \
-            || arret "Copie de $f impossible : mise à jour non intégrée, rien n'est perdu."
-    fi
+    if [ -e "$f" ] || [ -L "$f" ]; then copier "$f"; fi
     if [ "$suivi" -eq 1 ]; then
         git restore --source=HEAD --staged --worktree -- ":(literal)$f"
+        if [ -d "$f" ] && [ ! -L "$f" ]; then git clean -fdxq -- ":(literal)$f"; fi
     else
-        git rm -q --cached --ignore-unmatch -- ":(literal)$f"
-        rm -f -- "$f"
+        git rm -q -r --cached --ignore-unmatch -- ":(literal)$f"
+        rm -rf -- "$f"
     fi
 done
 
 message="Intègre la mise à jour du TP"
 fusion() { git -c merge.renames=false -c merge.autostash=false merge -q --no-verify --no-edit -m "$message" "$cible" > /dev/null 2>&1; }
+trap 'git merge --abort 2>/dev/null; exit 130' INT TERM HUP
 if ! fusion; then
     if git rev-parse -q --verify MERGE_HEAD > /dev/null; then
         mapfile -d '' -t conflits < <(git diff --name-only --diff-filter=U -z)
@@ -105,7 +123,7 @@ if ! fusion; then
         for f in "${conflits[@]}"; do bouge "$f" || resolu=0; done
         if [ "$resolu" -eq 0 ]; then
             git merge --abort
-            arret "Le même fichier a changé ici et sur GitHub (${conflits[*]:-fusion impossible}) : rien n'a été modifié, rien n'est perdu. Prévenez votre enseignant."
+            arret "Le même fichier a changé ici et sur GitHub (${conflits[*]:-fusion impossible}) : vos réponses n'ont pas changé, rien n'est perdu. Pour terminer : r510-sauver, puis git pull --no-rebase, gardez la bonne réponse dans l'éditeur, puis r510-sauver. En cas de doute, prévenez votre enseignant."
         fi
         # Conflit sur les seuls fichiers qui bougent : la version de l'équipe enseignante l'emporte.
         for f in "${conflits[@]}"; do
@@ -119,11 +137,14 @@ if ! fusion; then
             git merge --abort
             arret "Mise à jour du TP impossible : rien n'est perdu. Prévenez votre enseignant."
         fi
+    elif [ -e "$(git rev-parse --git-path index.lock)" ]; then
+        arret "Git est verrouillé par .git/index.lock : si aucune commande git ne tourne, supprimez ce fichier, puis relancez r510-sauver."
     else
         arret "Mise à jour du TP en attente : un de vos fichiers non enregistrés est concerné. Elle sera intégrée au prochain r510-sauver ; si ce message revient, prévenez votre enseignant."
     fi
 fi
 
+trap - INT TERM HUP
 nb=0; reconstruire=0; recharger=0
 for f in "${recus[@]}"; do
     bouge "$f" || continue

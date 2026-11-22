@@ -227,6 +227,83 @@ lance r510-rendre --oui --sans-check && echec "rendu accepté malgré un conflit
 [ "$(tags_distants)" = 1 ] || echec "tag poussé malgré un conflit de réponses"
 ok "conflit de réponses : arrêt net, rien de perdu, rien de rendu"
 
+contient "git pull --no-rebase" || echec "conflit de réponses : aucune issue indiquée"
+lance git pull --no-rebase --no-edit && echec "le pull devait partir en conflit"
+echo "travail pendant la fusion" >> reponses
+lance r510-integrer --souple || echec "fusion en cours : --souple a échoué"
+git rev-parse -q --verify MERGE_HEAD > /dev/null || echec "fusion de l'étudiant annulée"
+grep -qx "travail pendant la fusion" reponses || echec "travail écrit pendant la fusion perdu"
+lance r510-sauver && echec "marqueurs de conflit sauvegardés"
+git show origin/main:reponses | grep -q '^<<<<<<<' && echec "marqueurs de conflit poussés"
+git add reponses
+lance r510-sauver && echec "marqueurs de conflit déjà indexés sauvegardés"
+ok "fusion de l'étudiant : jamais annulée, marqueurs jamais poussés"
+
+git show HEAD:reponses > reponses
+lance r510-sauver || echec "fusion où l'on garde sa version : pas de sortie"
+git rev-parse -q --verify MERGE_HEAD > /dev/null && echec "fusion non conclue"
+[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || echec "fusion conclue mais non poussée"
+grep -qx ici reponses || echec "version gardée perdue"
+ok "fusion où l'on garde sa version : conclue et poussée"
+
+mkdir -p hooks-essai && printf '#!/bin/sh\nexit 1\n' > hooks-essai/pre-commit && chmod 755 hooks-essai/pre-commit
+echo perdu >> reponses
+git config core.hooksPath "$PWD/hooks-essai"
+lance r510-sauver && echec "commit impossible annoncé comme sauvegardé"
+contient "Commit impossible" || echec "commit impossible : message"
+lance r510-rendre --oui --sans-check && echec "commit impossible annoncé comme rendu"
+[ "$(tags_distants)" = 1 ] || echec "tag poussé alors que le commit a échoué"
+git config --unset core.hooksPath
+rm hooks-essai/pre-commit && rmdir hooks-essai
+lance r510-sauver || echec "sauvegarde après correction de la cause"
+ok "commit impossible : jamais de faux succès, aucun tag"
+
+(flock 7; sleep 3) 7> "$(git rev-parse --git-path r510-integrer.lock)" &
+sleep 0.5
+echo "sous verrou" >> reponses
+lance r510-sauver || echec "r510-sauver pendant une intégration"
+wait
+git show origin/main:reponses | grep -qx "sous verrou" || echec "réponse perdue sous verrou"
+ok "r510-sauver attend une intégration en cours"
+
+if command -v npm > /dev/null; then
+    printf '{ "scripts": { "check": "echo MongoDB éteint; exit 3" } }\n' > package.json
+    git add package.json && git commit -qm "check en panne" && git push -q 2> /dev/null
+    sleep 1
+    lance r510-rendre --oui || echec "r510-rendre muet quand r510-verifier n'a pas de score"
+    contient "MongoDB éteint" || echec "cause de l'absence de score non affichée"
+    [ "$(tags_distants)" = 2 ] || echec "rendu sans score non poussé"
+    ok "sans score : cause affichée, rendu possible"
+fi
+
+mkdir -p data/lot && echo "dossier local" > data/lot/notes
+enseignant "echo officiel > data/lot"
+lance r510-integrer || echec "dossier local là où arrive un fichier"
+grep -qx officiel data/lot || echec "fichier officiel absent"
+grep -rqx "dossier local" .git/r510-sauvegarde || echec "dossier local non copié"
+ok "collision dossier et fichier : copie puis intégration"
+
+echo "fichier local" > data/sous
+enseignant "mkdir -p data/sous; echo officiel > data/sous/x"
+lance r510-integrer || echec "fichier local là où arrive un dossier"
+grep -qx officiel data/sous/x || echec "dossier officiel absent"
+grep -rqx "fichier local" .git/r510-sauvegarde || echec "fichier local non copié"
+ok "collision fichier et dossier : copie puis intégration"
+
+: > .git/index.lock
+enseignant "echo encore >> enonce"
+lance r510-integrer && echec "index.lock ignoré"
+contient "index.lock" || echec "index.lock : message"
+rm .git/index.lock
+lance r510-integrer || echec "intégration après retrait de index.lock"
+ok "index.lock abandonné : message juste"
+
+mkdir -p .git/rebase-merge
+lance r510-sauver && echec "rebase en cours ignoré"
+contient "git rebase --abort" || echec "rebase en cours : message"
+rmdir .git/rebase-merge
+ok "rebase en cours : issue indiquée"
+
 git remote set-url origin "$ESSAI/absent.git"
 lance r510-integrer || echec "GitHub injoignable : r510-integrer échoue"
 contient "GitHub ne répond pas" || echec "GitHub injoignable : message"

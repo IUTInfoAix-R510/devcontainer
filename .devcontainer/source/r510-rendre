@@ -82,6 +82,9 @@ else
     projet=0; max=3
 fi
 
+if [ -d "$(git rev-parse --git-path rebase-merge)" ] || [ -d "$(git rev-parse --git-path rebase-apply)" ]; then
+    die "Un rebase est en cours : git rebase --abort, puis relancez r510-sauver."
+fi
 branche=$(git rev-parse --abbrev-ref HEAD)
 [ "$branche" = "main" ] || die "Vous êtes sur la branche « $branche » : le rendu se fait depuis main (git switch main)."
 
@@ -92,7 +95,7 @@ r510-integrer --souple
 if [ "$check" -eq 1 ] && [ -f package.json ] && grep -q '"check"' package.json; then
     printf '→ r510-verifier\n'
     sortie=$(r510-verifier 2>&1) || true
-    score=$(printf '%s\n' "$sortie" | grep -E '^Score' | head -1)
+    score=$(printf '%s\n' "$sortie" | grep -E '^Score' | head -1 || true)
     if [ -n "$score" ]; then
         printf '  %s (indicatif)\n' "$score"
     else
@@ -137,14 +140,31 @@ if [ "$oui" -eq 0 ]; then
 fi
 
 # 2. Enregistrer.
-run git add -A
-if git diff --cached --quiet; then
+exec 8> "$(git rev-parse --git-path r510-integrer.lock)"
+flock -w 30 8 || die "Une intégration est en cours : relancez dans une minute."
+fusion=0
+if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+    fusion=1
+    # Tous les fichiers, ceux que l'étudiant a créés compris, sauf ceux qui bougent (le hook les règle).
+    ou=(.)
+    while read -r qui chemin; do
+        [ "$qui" != bouge ] || ou+=(":(exclude)$chemin")
+    done < <(git show HEAD:.github/fichiers-du-tp.txt 2>/dev/null || true)
+    marques=$(git grep -lE '^(<{7}|>{7}) ' -- "${ou[@]}" | sort -u || true)
+    [ -z "$marques" ] || die "Conflit à résoudre dans $marques (retirez les lignes <<<<<<< et >>>>>>>) : travail non rendu."
+fi
+run git add -A 8>&-
+if [ "$fusion" -eq 0 ] && git diff --cached --quiet; then
     echo "  (rien de nouveau à enregistrer depuis le dernier commit)"
 else
     # Le hook pre-commit du TP peut restaurer des fichiers de configuration, voire arrêter
     # un commit qui ne contenait qu'eux : dans ce cas on rend le dernier commit.
-    run git commit -m "rendu" || echo "  (commit non fait : on rend le dernier commit)"
+    run git commit -m "rendu" 8>&- || {
+        { [ "$fusion" -eq 0 ] && git diff --cached --quiet; } || die "Commit impossible (message ci-dessus) : travail non rendu."
+        echo "  (rien d'autre à enregistrer)"
+    }
 fi
+exec 8>&-
 
 # 3. Envoyer.
 r510-integrer || die "La mise à jour du TP n'a pas pu être intégrée : votre travail n'est pas rendu. Lisez le message ci-dessus."

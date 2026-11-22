@@ -12,7 +12,7 @@ L'image est construite une fois ici, testée, puis publiée sur ghcr.io sous un 
 
 ## Contenu de l'image
 
-`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.7`, amd64 seulement (l'architecture de Codespaces).
+`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.8`, amd64 seulement (l'architecture de Codespaces).
 
 | Outil | Version | Usage |
 |---|---|---|
@@ -53,7 +53,7 @@ Par exemple, pour le TP1 :
 ```jsonc
 {
   "name": "R5.Real.10 : TP1 MongoDB",
-  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.7",
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.8",
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
   "postStartCommand": "r510-mongo start"
 }
@@ -104,7 +104,7 @@ Les données sont dans le home de `vscode` (`~/.local/share/mongodb`, `~/.local/
 | `r510-integrer [--souple]` | Intègre sur `main` les mises à jour du TP poussées par l'équipe enseignante. L'étudiant ne la lance pas : le `postStartCommand` du TP (`--souple`, ne bloque jamais), `r510-sauver` et `r510-rendre` l'appellent. Sans effet dans un dépôt sans `.github/fichiers-du-tp.txt`. |
 | `r510-rendre` | `r510-verifier` (score indicatif, si le TP en a un), annonce le numéro du rendu, demande confirmation, puis `git add -A`, `git commit -m "rendu"`, `git push`, `git tag submit/AAAAMMJJ-HHMMSS` et `git push origin submit/…`. Donne le lien de la Release du rendu. Options : `--oui` (sans confirmation), `--sans-check`. |
 
-**Mises à jour du TP.** `.github/fichiers-du-tp.txt` dit, chemin par chemin, ce qui bouge, ce qui est à l'étudiant et ce qui est à Classroom 50. `r510-integrer` fusionne, sans push forcé ni rebase : sur un fichier qui bouge, la version de l'équipe enseignante l'emporte et la version locale est gardée (`.git/r510-sauvegarde/` ou historique) ; sur un fichier de l'étudiant, un conflit arrête tout sans rien changer.
+**Mises à jour du TP.** `.github/fichiers-du-tp.txt` dit, chemin par chemin, ce qui bouge, ce qui est à l'étudiant et ce qui est à Classroom 50. `r510-integrer` fusionne, sans push forcé ni rebase : sur un fichier qui bouge, la version de l'équipe enseignante l'emporte et la version locale est gardée (`.git/r510-sauvegarde/` ou historique) ; sur un fichier de l'étudiant, un conflit arrête tout sans rien changer et indique comment finir. Une fusion que l'étudiant a lancée n'est jamais touchée.
 
 `r510-rendre` refuse de tourner sans terminal interactif, sauf avec `--oui`, et seulement depuis la branche `main`. Les assistants IA des dépôts de TP n'ont pas le droit de la lancer (garde `.agents/garde-tuteur.mjs`).
 

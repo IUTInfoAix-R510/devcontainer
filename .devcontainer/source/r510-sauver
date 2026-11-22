@@ -39,16 +39,36 @@ run() {
 racine=$(git rev-parse --show-toplevel 2>/dev/null) || die "Lancez r510-sauver dans le dossier de votre TP ou du projet (un dépôt git)."
 cd "$racine"
 
+if [ -d "$(git rev-parse --git-path rebase-merge)" ] || [ -d "$(git rev-parse --git-path rebase-apply)" ]; then
+    die "Un rebase est en cours : git rebase --abort, puis relancez r510-sauver."
+fi
 branche=$(git symbolic-ref --short -q HEAD || true)
 [ -n "$branche" ] \
     || die "Vous n'êtes sur aucune branche (HEAD détachée) : revenez sur une branche (git switch main), puis relancez r510-sauver."
 
-run git add -A
-if git diff --cached --quiet; then
+exec 8> "$(git rev-parse --git-path r510-integrer.lock)"
+flock -w 30 8 || die "Une intégration est en cours : relancez dans une minute."
+fusion=0
+if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+    fusion=1
+    # Tous les fichiers, ceux que l'étudiant a créés compris, sauf ceux qui bougent (le hook les règle).
+    ou=(.)
+    while read -r qui chemin; do
+        [ "$qui" != bouge ] || ou+=(":(exclude)$chemin")
+    done < <(git show HEAD:.github/fichiers-du-tp.txt 2>/dev/null || true)
+    marques=$(git grep -lE '^(<{7}|>{7}) ' -- "${ou[@]}" | sort -u || true)
+    [ -z "$marques" ] || die "Conflit à résoudre dans $marques (retirez les lignes <<<<<<< et >>>>>>>) : travail non sauvegardé."
+fi
+run git add -A 8>&-
+if [ "$fusion" -eq 0 ] && git diff --cached --quiet; then
     echo "  (rien de nouveau à enregistrer depuis le dernier commit)"
 else
-    run git commit -m "${1:-sauvegarde}" || echo "  (commit non fait, voir le message ci-dessus)"
+    run git commit -m "${1:-sauvegarde}" 8>&- || {
+        { [ "$fusion" -eq 0 ] && git diff --cached --quiet; } || die "Commit impossible (message ci-dessus) : travail non sauvegardé."
+        echo "  (rien d'autre à enregistrer)"
+    }
 fi
+exec 8>&-
 echec_push="Le push a échoué : votre travail est enregistré dans le codespace, pas sur GitHub."
 if [ "$branche" = "main" ]; then
     r510-integrer || die "$echec_push Lisez le message ci-dessus."
