@@ -17,6 +17,10 @@ for c in git r510-sauver r510-rendre r510-verifier r510-recharger r510-integrer;
     command -v "$c" > /dev/null || { echo "✗ $c introuvable dans le PATH" >&2; exit 2; }
 done
 
+# Vrai si les commandes testées sont celles des sources ; faux dans une image publiée plus ancienne.
+DES_SOURCES=non
+if cmp -s "$(command -v r510-integrer)" "$(dirname "$0")/source/r510-integrer"; then DES_SOURCES=oui; fi
+
 ESSAI=$(mktemp -d)
 trap 'rm -rf "$ESSAI"' EXIT
 export GIT_CONFIG_GLOBAL="$ESSAI/gitconfig" GIT_CONFIG_NOSYSTEM=1
@@ -219,7 +223,10 @@ lance r510-integrer --souple || echec "--souple a fait échouer l'appelant"
 grep -qx ici reponses || echec "réponse locale écrasée au démarrage"
 lance r510-sauver && echec "conflit de réponses accepté"
 contient "rien n'est perdu" || echec "conflit de réponses : message"
-contient "Votre travail est enregistré. Pour terminer : git pull" || echec "conflit : la consigne renvoie à la commande qui vient d'échouer"
+# Ce message arrive avec l'image qui suit la 2026.11.8.
+if [ "$DES_SOURCES" = oui ]; then
+    contient "Votre travail est enregistré. Pour terminer : git pull" || echec "conflit : la consigne renvoie à la commande qui vient d'échouer"
+fi
 grep -qx ici reponses || echec "réponse locale écrasée"
 git rev-parse -q --verify MERGE_HEAD > /dev/null && echec "fusion laissée en cours"
 git show origin/main:reponses | grep -qx second-codespace || echec "réponse de GitHub écrasée"
