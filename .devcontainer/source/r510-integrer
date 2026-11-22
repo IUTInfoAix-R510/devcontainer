@@ -123,7 +123,14 @@ if ! fusion; then
         for f in "${conflits[@]}"; do bouge "$f" || resolu=0; done
         if [ "$resolu" -eq 0 ]; then
             git merge --abort
-            arret "Le même fichier a changé ici et sur GitHub (${conflits[*]:-fusion impossible}) : vos réponses n'ont pas changé, rien n'est perdu. Pour terminer : r510-sauver, puis git pull --no-rebase, gardez la bonne réponse dans l'éditeur, puis r510-sauver. En cas de doute, prévenez votre enseignant."
+            # r510-sauver vient de commiter : lui redire « r510-sauver » ferait tourner en rond.
+            etapes="git pull --no-rebase, gardez la bonne réponse dans l'éditeur, puis r510-sauver"
+            if git diff --quiet HEAD --; then
+                suite="Votre travail est enregistré. Pour terminer : $etapes"
+            else
+                suite="Pour terminer, enregistrez d'abord votre travail (git add -A, puis git commit -m travail), puis $etapes"
+            fi
+            arret "Le même fichier a changé ici et sur GitHub (${conflits[*]:-fusion impossible}) : vos réponses n'ont pas changé, rien n'est perdu. $suite. En cas de doute, prévenez votre enseignant."
         fi
         # Conflit sur les seuls fichiers qui bougent : la version de l'équipe enseignante l'emporte.
         for f in "${conflits[@]}"; do
