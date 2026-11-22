@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# r510-recharger : recharge les données du TP dans la base de l'étudiant (R5.Real.10).
+# C'est le script « seed » du package.json du TP, sans que l'étudiant ait à le connaître.
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage : r510-recharger [--avant N]
+
+Recharge les données du TP dans votre base : son contenu actuel est remplacé.
+
+  --avant N   met la base dans l'état attendu juste avant l'exercice N
+              (dans les TP qui le proposent : voir l'énoncé)
+EOF
+}
+
+die() { printf '✗ %s\n' "$*" >&2; exit 2; }
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+esac
+# Sans cette vérification, « r510-recharger 12 » effacerait le travail en remettant l'état initial.
+if [ "$#" -ne 0 ] && ! { [ "$#" -eq 2 ] && [ "$1" = "--avant" ] && [[ "$2" =~ ^[0-9]+$ ]]; }; then
+    usage >&2
+    exit 2
+fi
+
+racine=$(git rev-parse --show-toplevel 2>/dev/null) || die "Lancez r510-recharger dans le dossier de votre TP."
+cd "$racine"
+{ [ -f package.json ] && grep -q '"seed"' package.json; } || die "Ce dépôt n'a pas de données à recharger par cette commande."
+exec npm run --silent seed -- "$@"

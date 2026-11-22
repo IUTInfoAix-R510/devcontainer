@@ -18,6 +18,8 @@ Ce dépôt ne contient que l'image du Codespace de R5.Real.10 : sa recette, son 
     ├── r510-mongo             start | stop | status | reset | log
     ├── r510-neo4j             start | stop | status | reset | log
     ├── r510-sauver            add, commit, push (push -u sur une nouvelle branche)
+    ├── r510-verifier          correcteur automatique (script check du TP)
+    ├── r510-recharger         données du TP (script seed)
     └── r510-rendre            rendu par tag submit/… (règles des TP ou du projet)
 exemples/
 ├── mongodb/devcontainer.json       tp1 à tp3, projet (configuration par défaut)
@@ -233,6 +235,7 @@ Codespace 2 cœurs créé par `nedseb` sur un dépôt privé de `IUTInfoAix-R510
 - **Image 2026.11.3.** Message d'accueil du premier terminal en français : l'image de base affiche `/usr/local/etc/vscode-dev-containers/first-run-notice.txt` s'il existe (`/etc/zsh/zshrc`, `/etc/bash.bashrc`), à la place du message anglais de Codespaces ; source `.devcontainer/source/first-run-notice.txt`, vérifiée par le smoke-test.
 - **Image 2026.11.4.** Commandes `r510-sauver` et `r510-rendre`, qui remplacent les trois commandes git du rendu par tag. Le message d'accueil les mentionne. Le smoke-test les essaie sur un dépôt factice.
 - **Image 2026.11.5.** `r510-rendre` reconnaît le dépôt du projet (nom `r510-projet-…`, à défaut ses fichiers) : cinq rendus au plus, rang du rendu sur 5, avertissement avant un sixième, accusé de réception au lieu de « la note apparaît » ; les messages des TP ne changent pas. Le numéro du rendu se replie sur les tags locaux quand GitHub ne répond pas (il valait toujours 1). `r510-sauver` fait `git push -u origin <branche>` sur une branche sans branche amont. Essais dans `essais-rendu.sh`.
+- **Image 2026.11.6.** `r510-verifier` et `r510-recharger [--avant N]` remplacent `npm run check` et `npm run seed` pour les étudiants, qui ne voient plus npm ; `r510-rendre` passe par `r510-verifier`.
 - **Neo4j s'arrêtait trois secondes après son démarrage** (« Neo4j Server shutdown initiated by request » dans `neo4j.log`). Dans un codespace, la fin du `postStartCommand` termine tout le groupe de processus qui l'a lancé. `mongod --fork` sort de ce groupe, `neo4j start` non. Corrigé dans l'image `2026.11.2` : `r510-neo4j` lance `setsid -w neo4j start`. Le smoke-test reproduit la situation (étape « Neo4j survit à la fin du groupe de processus qui l'a démarré »). Ni la CLI `devcontainer` ni les workflows ne la reproduisaient ;
 - avec ce correctif appliqué à la main dans le codespace : la médiathèque de tp1-graphe se charge en 7 s (43 exemplaires, 26 livres, 18 auteurs, 14 membres, 11 catégories), `LOAD CSV` lit les 48 lignes de `emprunts.csv`, MongoDB occupe 150 Mo et Neo4j 814 Mo ;
 - **`LOAD CSV FROM "https://…"` fonctionne** : le codespace a accès au réseau. Sans conséquence pour l'étudiant, mais la notation ne doit pas exécuter ses requêtes avec le même accès ;

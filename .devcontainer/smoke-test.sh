@@ -75,7 +75,7 @@ echo "node $(node --version), $(gh --version | head -1)"
 # /etc/profile de Debian le remet à zéro, d'où les liens dans /usr/local/bin.
 etape "Les outils sont trouvés dans un shell de connexion (bash et zsh)"
 for s in bash zsh; do
-    for c in java javac mongosh mongoimport neo4j cypher-shell node npm gh r510-mongo r510-neo4j r510-sauver r510-rendre; do
+    for c in java javac mongosh mongoimport neo4j cypher-shell node npm gh r510-mongo r510-neo4j r510-sauver r510-rendre r510-verifier r510-recharger; do
         $s -lc "command -v $c" > /dev/null || echec "$c introuvable dans un shell de connexion $s"
     done
 done

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Essais de r510-sauver et r510-rendre, sans réseau : chaque scénario clone un
+# Essais de r510-sauver, r510-rendre, r510-verifier et r510-recharger, sans réseau : chaque scénario clone un
 # dépôt nu local qui joue le rôle de GitHub. Le nom du dépôt nu décide du type
 # de dépôt vu par r510-rendre : r510-tp1-essai.git pour un TP,
 # r510-projet-group-1.git pour le projet.
@@ -13,7 +13,7 @@
 # des commits ou un hook global ne fausse pas les essais.
 set -eu
 
-for c in git r510-sauver r510-rendre; do
+for c in git r510-sauver r510-rendre r510-verifier r510-recharger; do
     command -v "$c" > /dev/null || { echo "✗ $c introuvable dans le PATH" >&2; exit 2; }
 done
 
@@ -96,13 +96,27 @@ contient "Pas de terminal interactif" || echec "r510-rendre sans terminal : mess
 ok "refus : r510-rendre sans terminal interactif ni --oui"
 
 if command -v npm > /dev/null; then
-    printf '{ "scripts": { "check": "echo Score : 7/10" } }\n' > package.json
+    printf '{ "scripts": { "check": "echo Score : 7/10", "seed": "echo Recharge" } }\n' > package.json
+    mkdir -p sous-dossier
+    (cd sous-dossier && lance r510-verifier) || echec "r510-verifier depuis un sous-dossier"
+    contient "Score : 7/10" || echec "r510-verifier n'affiche pas le score"
+    contient "npm" && echec "r510-verifier montre npm"
+    lance r510-verifier --sortie r.json && echec "r510-verifier accepte un argument"
+    lance r510-recharger || echec "r510-recharger"
+    contient "Recharge" || echec "r510-recharger ne lance pas le chargement"
+    lance r510-recharger --avant 12 || echec "r510-recharger --avant 12"
+    contient "Recharge --avant 12" || echec "r510-recharger ne transmet pas --avant"
+    lance r510-recharger 12 && echec "r510-recharger accepte un numéro sans --avant"
+    lance r510-recharger --avant && echec "r510-recharger accepte --avant sans numéro"
+    rmdir sous-dossier
+    ok "r510-verifier et r510-recharger : sous-dossier, arguments, npm invisible"
     git add package.json && git commit -qm "check factice"
     lance r510-rendre --oui || echec "r510-rendre --oui (TP)"
-    contient "Score : 7/10 (indicatif)" || echec "le score indicatif de npm run check n'est pas affiché"
+    contient "npm" && echec "r510-rendre montre npm"
+    contient "Score : 7/10 (indicatif)" || echec "le score indicatif de r510-verifier n'est pas affiché"
 else
     lance r510-rendre --oui --sans-check || echec "r510-rendre --oui (TP)"
-    echo "  (npm absent : npm run check non essayé)"
+    echo "  (npm absent : r510-verifier non essayé)"
 fi
 contient "Ce sera votre rendu n° 1 (trois au plus par TP)." || echec "annonce du rendu n° 1 d'un TP"
 contient "La note apparaît dans 2 à 5 minutes" || echec "message final d'un TP"

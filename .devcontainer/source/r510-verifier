@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# r510-verifier : lance le correcteur automatique du TP sur le travail en cours (R5.Real.10).
+# C'est le script « check » du package.json du TP, sans que l'étudiant ait à le connaître.
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage : r510-verifier
+
+Lance le correcteur automatique sur votre travail et affiche un score indicatif.
+Votre base n'est pas modifiée et rien n'est rendu (pour rendre : r510-rendre).
+EOF
+}
+
+die() { printf '✗ %s\n' "$*" >&2; exit 2; }
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+esac
+# Aucun argument : le tuteur IA a le droit de lancer cette commande, elle ne doit rien écrire.
+[ "$#" -eq 0 ] || { usage >&2; exit 2; }
+
+racine=$(git rev-parse --show-toplevel 2>/dev/null) || die "Lancez r510-verifier dans le dossier de votre TP."
+cd "$racine"
+{ [ -f package.json ] && grep -q '"check"' package.json; } || die "Ce dépôt n'a pas de correcteur automatique à lancer."
+exec npm run --silent check

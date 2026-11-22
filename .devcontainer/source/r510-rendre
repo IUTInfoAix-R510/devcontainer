@@ -20,7 +20,7 @@ Pour le projet, la Release ne porte qu'un accusé de réception (ce n'est pas un
 note) : le projet est noté après la clôture.
 
 La commande fait, dans l'ordre, ce que vous pourriez taper vous-même :
-  1. npm run check                       score indicatif, si le TP en a un
+  1. r510-verifier                       score indicatif, si le TP en a un
   2. git add -A                          prend toutes vos modifications
      git commit -m "rendu"               les enregistre (s'il y en a)
   3. git push                            les envoie sur GitHub
@@ -31,7 +31,7 @@ Chaque tag submit/… est un rendu : trois au plus par TP, cinq au plus pour le
 projet. La commande vous dit lequel ce sera et demande confirmation avant de rendre.
 
   --oui         ne pas demander de confirmation
-  --sans-check  ne pas lancer npm run check
+  --sans-check  ne pas lancer r510-verifier
 EOF
 }
 
@@ -84,14 +84,14 @@ branche=$(git rev-parse --abbrev-ref HEAD)
 
 # 1. Score indicatif.
 if [ "$check" -eq 1 ] && [ -f package.json ] && grep -q '"check"' package.json; then
-    printf '→ npm run check\n'
-    sortie=$(npm run --silent check 2>&1) || true
+    printf '→ r510-verifier\n'
+    sortie=$(r510-verifier 2>&1) || true
     score=$(printf '%s\n' "$sortie" | grep -E '^Score' | head -1)
     if [ -n "$score" ]; then
         printf '  %s (indicatif)\n' "$score"
     else
         printf '%s\n' "$sortie" | tail -5
-        printf '  Le correcteur automatique n'"'"'a pas pu donner de score : vérifiez avec npm run check.\n'
+        printf '  Le correcteur automatique n'"'"'a pas pu donner de score : vérifiez avec r510-verifier.\n'
     fi
 fi
 

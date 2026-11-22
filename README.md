@@ -12,7 +12,7 @@ L'image est construite une fois ici, testée, puis publiée sur ghcr.io sous un 
 
 ## Contenu de l'image
 
-`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.5`, amd64 seulement (l'architecture de Codespaces).
+`ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.6`, amd64 seulement (l'architecture de Codespaces).
 
 | Outil | Version | Usage |
 |---|---|---|
@@ -53,7 +53,7 @@ Par exemple, pour le TP1 :
 ```jsonc
 {
   "name": "R5.Real.10 : TP1 MongoDB",
-  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.5",
+  "image": "ghcr.io/iutinfoaix-r510/r510-devcontainer:2026.11.6",
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
   "postStartCommand": "r510-mongo start"
 }
@@ -94,12 +94,14 @@ Les données sont dans le home de `vscode` (`~/.local/share/mongodb`, `~/.local/
 
 ## Commandes de sauvegarde et de rendu
 
-Deux commandes évitent aux étudiants de taper les commandes git du rendu. Elles affichent chaque commande git avant de la lancer, et `--help` détaille les étapes.
+`r510-sauver` et `r510-rendre` évitent aux étudiants de taper les commandes git du rendu, `r510-verifier` et `r510-recharger` de connaître les scripts npm du TP. Les deux premières affichent chaque commande git avant de la lancer, et `--help` détaille les étapes.
 
 | Commande | Effet |
 |---|---|
 | `r510-sauver ["message"]` | `git add -A`, `git commit` (message par défaut : « sauvegarde »), `git push`, sur la branche courante. Sur une nouvelle branche qui n'a pas encore de branche amont, le push est `git push -u origin <branche>`. Ce n'est pas un rendu : rien n'est noté. |
-| `r510-rendre` | `npm run check` (score indicatif, si le TP en a un), annonce le numéro du rendu, demande confirmation, puis `git add -A`, `git commit -m "rendu"`, `git push`, `git tag submit/AAAAMMJJ-HHMMSS` et `git push origin submit/…`. Donne le lien de la Release du rendu. Options : `--oui` (sans confirmation), `--sans-check`. |
+| `r510-verifier` | Lance le correcteur automatique (script `check` du TP) et affiche un score indicatif. Aucun argument, rien n'est modifié. |
+| `r510-recharger [--avant N]` | Recharge les données du TP (script `seed`) et remplace le contenu de la base. |
+| `r510-rendre` | `r510-verifier` (score indicatif, si le TP en a un), annonce le numéro du rendu, demande confirmation, puis `git add -A`, `git commit -m "rendu"`, `git push`, `git tag submit/AAAAMMJJ-HHMMSS` et `git push origin submit/…`. Donne le lien de la Release du rendu. Options : `--oui` (sans confirmation), `--sans-check`. |
 
 `r510-rendre` refuse de tourner sans terminal interactif, sauf avec `--oui`, et seulement depuis la branche `main`. Les assistants IA des dépôts de TP n'ont pas le droit de la lancer (garde `.agents/garde-tuteur.mjs`).
 
@@ -122,7 +124,7 @@ Le dépôt est reconnu comme celui du projet à son nom (`r510-projet-…`, pris
 
 **Neo4j Browser (http://localhost:7474) ne s'ouvre pas ou ne se connecte pas.** C'est normal dans Codespaces : il ne passe pas par le tunnel du codespace. Utilisez l'extension VS Code Neo4j, qui affiche aussi les résultats en graphe.
 
-**Ma base est dans un état incohérent.** `r510-mongo reset` ou `r510-neo4j reset` repartent d'une base vide ; rechargez ensuite les données du TP (script de chargement ou `npm run seed` selon le TP).
+**Ma base est dans un état incohérent.** `r510-mongo reset` ou `r510-neo4j reset` repartent d'une base vide ; rechargez ensuite les données du TP (`r510-recharger` dans les TP).
 
 **Mes données ont disparu.** Un « Rebuild Container » repart de l'image et efface les bases. Votre code, lui, est dans `/workspaces` et n'est pas touché.
 
